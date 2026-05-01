@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-ink: #323130;
+  --color-muted: #605e5c;
+  --color-canvas: #faf9f8;
+  --color-surface: #ffffff;
+  --color-panel: #f3f2f1;
+  --color-border: #edebe9;
+  --color-azure: #0078d4;
+  --color-azure-dark: #106ebe;
+  --color-trust: #107c10;
+  --color-signal: #d13438;
+  --color-saffron: #ffb900;
+  color-scheme: light;
+  background: var(--color-canvas);
+}
+
+html.dark {
+  --color-ink: #f3f2f1;
+  --color-muted: #c8c6c4;
+  --color-canvas: #11100f;
+  --color-surface: #201f1e;
+  --color-panel: #2b2a29;
+  --color-border: #3b3a39;
+  --color-azure: #4aa7f0;
+  --color-azure-dark: #70bdf7;
+  --color-trust: #6ccb5f;
+  --color-signal: #f1707b;
+  --color-saffron: #ffd335;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+html.dark .bg-white,
+html.dark .bg-white\/90,
+html.dark .bg-white\/95 {
+  background-color: color-mix(in srgb, var(--color-surface) 95%, transparent) !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-fluent-canvas,
+html.dark .bg-fluent-panel {
+  background-color: var(--color-panel) !important;
+}
+
+html.dark .bg-blue-50,
+html.dark .bg-\[\#EAF4FE\] {
+  background-color: #082944 !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-fluent-border,
+html.dark .border-blue-100 {
+  border-color: var(--color-border) !important;
+}
+
+html.dark .text-slate-500,
+html.dark .text-slate-600,
+html.dark .text-slate-700,
+html.dark .text-fluent-muted {
+  color: var(--color-muted) !important;
+}
+
+html.dark .text-ink,
+html.dark .text-fluent-text {
+  color: var(--color-ink) !important;
+}
+
+html.dark .shadow-soft {
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+}

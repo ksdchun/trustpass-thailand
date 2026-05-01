@@ -1,0 +1,32 @@
+[
+  {
+    "city": "Bangkok",
+    "category": "Taxi overcharging",
+    "riskLevel": "Caution",
+    "signals": ["meter refused", "unusual fixed fare"]
+  },
+  {
+    "city": "Phuket",
+    "category": "Suspicious tour payment",
+    "riskLevel": "High",
+    "signals": ["personal account", "full prepayment", "missing license"]
+  },
+  {
+    "city": "Chiang Mai",
+    "category": "Rental passport risk",
+    "riskLevel": "High",
+    "signals": ["original passport requested", "unclear damage policy"]
+  },
+  {
+    "city": "Mae Sot",
+    "category": "Fake casting or job luring",
+    "riskLevel": "Emergency",
+    "signals": ["border travel", "secrecy pressure", "free pickup"]
+  },
+  {
+    "city": "Pattaya",
+    "category": "Payment identity mismatch",
+    "riskLevel": "High",
+    "signals": ["QR name mismatch", "no receipt"]
+  }
+]

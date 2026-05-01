@@ -1,0 +1,47 @@
+[
+  {
+    "id": "taxi_meter_refusal",
+    "category": "Taxi overcharging",
+    "riskLevel": "Caution",
+    "signals": ["meter broken", "meter not working", "no meter", "fixed fare", "800 baht", "overcharge"],
+    "why": "Refusing the meter or demanding an unusual fixed price is a common tourist overcharging signal.",
+    "actions": ["Move to a public safe area if uncomfortable.", "Ask for the meter before starting the trip.", "Save the taxi plate, pickup place, time, and quoted fare."],
+    "thaiPhrase": "กรุณาเปิดมิเตอร์ครับ/ค่ะ"
+  },
+  {
+    "id": "personal_transfer_tour",
+    "category": "Suspicious tour payment",
+    "riskLevel": "High",
+    "signals": ["full payment", "deposit now", "personal account", "bank transfer", "no license", "line only", "limited time"],
+    "why": "Full prepayment to a personal account, missing license details, or high-pressure language can indicate a fake tour or deposit scam.",
+    "actions": ["Do not pay until the operator provides registration or license details.", "Ask for an official receipt and cancellation policy.", "Verify the operator through your hotel or a trusted platform."],
+    "thaiPhrase": "ขอเลขใบอนุญาต ใบเสร็จ และเงื่อนไขการยกเลิกเป็นลายลักษณ์อักษรได้ไหมครับ/ค่ะ"
+  },
+  {
+    "id": "passport_retention",
+    "category": "Rental passport risk",
+    "riskLevel": "High",
+    "signals": ["keep passport", "hold passport", "original passport", "passport deposit", "leave your passport"],
+    "why": "Leaving an original passport can create pressure or leverage if a rental dispute happens.",
+    "actions": ["Ask to use a passport copy plus a deposit instead.", "Photograph the vehicle from all angles before use.", "Keep the rental contract and receipt."],
+    "thaiPhrase": "ขอใช้สำเนาพาสปอร์ตแทนตัวจริงได้ไหมครับ/ค่ะ"
+  },
+  {
+    "id": "qr_payment_mismatch",
+    "category": "Payment identity mismatch",
+    "riskLevel": "High",
+    "signals": ["qr", "qr payment", "account name", "different name", "personal name", "scan to pay"],
+    "why": "A QR/payment account name that does not match the business can make disputes and refunds difficult.",
+    "actions": ["Confirm the account belongs to the business before paying.", "Ask for an official receipt.", "Avoid large advance transfers to personal accounts."],
+    "thaiPhrase": "ชื่อบัญชีนี้เป็นของร้านหรือบริษัทใช่ไหมครับ/ค่ะ ขอใบเสร็จได้ไหมครับ/ค่ะ"
+  },
+  {
+    "id": "fake_job_casting_lure",
+    "category": "Fake casting or job luring",
+    "riskLevel": "Emergency",
+    "signals": ["casting", "modeling", "modelling", "paid photoshoot", "job offer", "airport pickup", "free transport", "mae sot", "border", "myanmar", "do not tell", "keep secret", "change hotel", "driver will pick you up"],
+    "why": "Fake job/casting offers, secrecy pressure, controlled transport, and travel toward a border area are severe luring risk signals.",
+    "actions": ["Do not follow the driver or travel to the meeting point.", "Stay in a public place and contact your hotel, Tourist Police 1155, or your embassy.", "Save chat screenshots, phone numbers, profile names, vehicle details, and pickup location."],
+    "thaiPhrase": "ฉันไม่สะดวกเดินทางไปตามนัดแล้ว และต้องการติดต่อโรงแรมหรือตำรวจท่องเที่ยวก่อน"
+  }
+]

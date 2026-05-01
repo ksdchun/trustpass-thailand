@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Tourist Police",
+    "phone": "1155",
+    "when": "Tourist scams, threats, unsafe travel situations, urgent tourism help"
+  },
+  {
+    "name": "Emergency Medical",
+    "phone": "1669",
+    "when": "Medical emergency or injury"
+  },
+  {
+    "name": "General Police",
+    "phone": "191",
+    "when": "Immediate danger or crime in progress"
+  },
+  {
+    "name": "Hotel Front Desk",
+    "phone": "Use hotel number",
+    "when": "Ask staff to help verify a vendor, translate, or contact authorities"
+  },
+  {
+    "name": "Embassy / Consulate",
+    "phone": "Use nationality-specific contact",
+    "when": "Passport loss, detention risk, trafficking concern, serious crime"
+  }
+]

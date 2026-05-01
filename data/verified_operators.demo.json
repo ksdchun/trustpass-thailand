@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Sawasdee River Tour",
+    "type": "tour",
+    "city": "Bangkok",
+    "status": "demo_verified",
+    "license": "TAT-DEMO-1001",
+    "phone": "+66 2 000 1001"
+  },
+  {
+    "name": "Phuket Blue Island Trips",
+    "type": "tour",
+    "city": "Phuket",
+    "status": "demo_verified",
+    "license": "TAT-DEMO-2001",
+    "phone": "+66 76 000 200"
+  },
+  {
+    "name": "Chiang Mai Local Wheels",
+    "type": "rental",
+    "city": "Chiang Mai",
+    "status": "demo_verified",
+    "license": "RENT-DEMO-3001",
+    "phone": "+66 53 000 300"
+  }
+]

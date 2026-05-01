@@ -1,0 +1,22 @@
+[
+  {
+    "label": "Ask for taxi meter",
+    "phrase": "กรุณาเปิดมิเตอร์ครับ/ค่ะ"
+  },
+  {
+    "label": "Request passport copy instead",
+    "phrase": "ขอใช้สำเนาพาสปอร์ตแทนตัวจริงได้ไหมครับ/ค่ะ"
+  },
+  {
+    "label": "Ask for receipt",
+    "phrase": "ขอใบเสร็จรับเงินอย่างเป็นทางการได้ไหมครับ/ค่ะ"
+  },
+  {
+    "label": "Ask for cancellation policy",
+    "phrase": "ขอเงื่อนไขการยกเลิกเป็นลายลักษณ์อักษรได้ไหมครับ/ค่ะ"
+  },
+  {
+    "label": "Contact tourist police",
+    "phrase": "ฉันต้องการติดต่อเจ้าหน้าที่ตำรวจท่องเที่ยว 1155"
+  }
+]

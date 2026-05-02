@@ -36,6 +36,24 @@
     "thaiPhrase": "ชื่อบัญชีนี้เป็นของร้านหรือบริษัทใช่ไหมครับ/ค่ะ ขอใบเสร็จได้ไหมครับ/ค่ะ"
   },
   {
+    "id": "tuktuk_detour_shop",
+    "category": "Tuk-tuk detour or commission stop",
+    "riskLevel": "Caution",
+    "signals": ["temple is closed", "gem shop", "tailor shop", "special price", "government shop", "free stop", "detour"],
+    "why": "Claims that an attraction is closed followed by pressure to visit a shop can indicate a commission-based detour or tourist trap.",
+    "actions": ["Check the attraction status through the official site, hotel staff, or map listing.", "Decline shop detours if that is not your plan.", "Agree on the destination and fare before riding."],
+    "thaiPhrase": "ไม่แวะร้านครับ/ค่ะ ไปที่จุดหมายเดิมเท่านั้น"
+  },
+  {
+    "id": "rental_damage_cash_pressure",
+    "category": "Rental damage cash pressure",
+    "riskLevel": "High",
+    "signals": ["scratch", "damage", "pay cash now", "20,000 baht", "no police", "no receipt", "keep passport", "jet ski"],
+    "why": "High cash demands for rental damage without documentation, receipt, or neutral inspection can create pressure and make disputes difficult.",
+    "actions": ["Move to a public area and do not hand over cash without a written receipt.", "Ask for photos, contract terms, and a neutral inspection.", "Contact hotel staff, Tourist Police 1155, or your insurer if pressured."],
+    "thaiPhrase": "ขอใบแจ้งค่าเสียหายเป็นลายลักษณ์อักษรและใบเสร็จก่อนครับ/ค่ะ"
+  },
+  {
     "id": "fake_job_casting_lure",
     "category": "Fake casting or job luring",
     "riskLevel": "Emergency",

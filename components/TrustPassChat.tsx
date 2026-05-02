@@ -9,6 +9,7 @@ import {
   Bot,
   FileText,
   Languages,
+  LocateFixed,
   Loader2,
   MapPin,
   Paperclip,
@@ -17,15 +18,19 @@ import {
   ShieldCheck,
   Sparkles
 } from "lucide-react";
-import type { ChatMessage, Language, RiskCheckResult, RiskLevel } from "@/lib/types";
+import type { ChatMessage, Language, RiskCheckResult, RiskLevel, UserLocation } from "@/lib/types";
 
 const cities = ["Bangkok", "Phuket", "Pattaya", "Chiang Mai", "Mae Sot"];
 const languages: Language[] = ["English", "Thai", "Chinese"];
 
 const suggestedChecks = [
   "Taxi driver says meter broken and asks 800 baht from Siam to Wat Pho.",
+  "Taxi says the fare from Silom to Siam Paragon is 50 THB during Songkran. Is this normal?",
   "This LINE tour seller asks for full payment today to a personal bank account and shows no license number.",
+  "A tuk-tuk driver says the temple is closed and wants to take me to a gem shop instead.",
+  "A QR payment screen shows a personal account name that does not match the tour company.",
   "The motorbike rental shop wants to keep my original passport until I return the bike.",
+  "The jet ski rental says I scratched it and demands 20,000 baht cash immediately.",
   "A WeChat casting job offers free airport pickup and says a driver will take me to Mae Sot. They told me not to tell my hotel."
 ];
 
@@ -41,8 +46,12 @@ export function TrustPassChat({ compact = false }: { compact?: boolean }) {
   const [message, setMessage] = useState("");
   const [city, setCity] = useState("Bangkok");
   const [language, setLanguage] = useState<Language>("English");
+  const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [file, setFile] = useState<File | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [extractedText, setExtractedText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,7 +88,9 @@ export function TrustPassChat({ compact = false }: { compact?: boolean }) {
           message,
           city,
           language,
+          incidentDateIso: new Date(`${incidentDate}T12:00:00+07:00`).toISOString(),
           extractedText: extracted,
+          userLocation,
           attachmentsMetadata: file ? [{ name: file.name, type: file.type, size: file.size }] : []
         })
       });
@@ -113,6 +124,37 @@ export function TrustPassChat({ compact = false }: { compact?: boolean }) {
     }
   }
 
+  function handleUseLocation() {
+    setLocationError("");
+
+    if (!navigator.geolocation) {
+      setLocationError("Location is not supported in this browser.");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          source: "browser"
+        });
+        setIsLocating(false);
+      },
+      (error) => {
+        setLocationError(error.message || "Could not read browser location.");
+        setIsLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
+  }
+
   return (
     <div className={`mx-auto flex w-full max-w-7xl flex-col gap-5 lg:grid ${compact ? "lg:grid-cols-[320px_1fr]" : "lg:grid-cols-[360px_1fr]"}`}>
       <aside className="rounded-[8px] border border-fluent-border bg-white p-5 shadow-sm">
@@ -138,12 +180,37 @@ export function TrustPassChat({ compact = false }: { compact?: boolean }) {
               ))}
             </select>
           </Control>
+          <Control label="Live location" icon={<LocateFixed className="h-4 w-4" />}>
+            <button
+              type="button"
+              onClick={handleUseLocation}
+              disabled={isLocating}
+              className="flex w-full items-center justify-center gap-2 rounded-[8px] border border-fluent-border bg-white px-3 py-2 text-sm font-semibold text-fluent-muted transition hover:border-azure hover:text-azure disabled:cursor-wait disabled:opacity-70"
+            >
+              {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+              {userLocation ? `Location added (${Math.round(userLocation.accuracy ?? 0)}m)` : "Use my location"}
+            </button>
+            {locationError && <p className="text-xs leading-5 text-red-700">{locationError}</p>}
+            {userLocation && (
+              <p className="text-xs leading-5 text-slate-500">
+                Shared only with this risk check to ground nearby context.
+              </p>
+            )}
+          </Control>
           <Control label="Output language" icon={<Languages className="h-4 w-4" />}>
               <select value={language} onChange={(event) => setLanguage(event.target.value as Language)} className="w-full rounded-[8px] border border-fluent-border bg-white px-3 py-2 text-sm outline-none focus:border-azure">
               {languages.map((item) => (
                 <option key={item}>{item}</option>
               ))}
             </select>
+          </Control>
+          <Control label="Situation date" icon={<FileText className="h-4 w-4" />}>
+            <input
+              type="date"
+              value={incidentDate}
+              onChange={(event) => setIncidentDate(event.target.value)}
+              className="w-full rounded-[8px] border border-fluent-border bg-white px-3 py-2 text-sm text-ink outline-none focus:border-azure"
+            />
           </Control>
         </div>
 
@@ -307,6 +374,34 @@ function ResultCard({ result }: { result: RiskCheckResult }) {
         <p className="mt-1 text-sm font-semibold text-ink">{result.thai_phrase}</p>
       </div>
       <InfoList title="Evidence checklist" items={result.evidence_to_save} icon={<FileText className="h-4 w-4 text-slate-500" />} />
+      {result.grounding && result.grounding.length > 0 && (
+        <div>
+          <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
+            <LocateFixed className="h-4 w-4 text-azure" />
+            Grounding used
+          </p>
+          <div className="grid gap-2">
+            {result.grounding.map((item) => (
+              <div key={`${item.tool}-${item.title}`} className="rounded-[8px] border border-blue-100 bg-blue-50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-ink">{item.title}</p>
+                  <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold uppercase text-azure">{item.tool.replace("_", " ")}</span>
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{item.summary}</p>
+                {item.citations && item.citations.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {item.citations.map((citation) => (
+                      <a key={citation.url} href={citation.url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-azure hover:text-fluent-blueDark">
+                        {citation.title}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="rounded-[8px] border border-red-100 bg-red-50 p-3">
         <p className="flex items-center gap-2 text-sm font-semibold text-red-800">
           <PhoneCall className="h-4 w-4" />

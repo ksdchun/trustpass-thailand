@@ -1,5 +1,7 @@
 import locationContext from "@/data/location_context.json";
 import taxiFareReference from "@/data/taxi_fare_reference.json";
+import foodPriceReference from "@/data/food_price_reference.json";
+import { extractEvidenceHints } from "@/lib/evidence-hints";
 import type { GroundingSignal, RiskCheckRequest } from "@/lib/types";
 
 type Zone = {
@@ -42,10 +44,27 @@ type Venue = {
   lat: number;
   lng: number;
   radius_m: number;
+  food_tier_id?: string;
   context: string;
   menu_price_band_baht: [number, number];
   verification_advice: string;
 };
+
+type FoodTier = {
+  id: string;
+  label: string;
+  typical_item_baht: [number, number];
+  typical_meal_baht: [number, number];
+  notes: string;
+};
+
+type FoodSource = {
+  title: string;
+  url: string;
+  summary: string;
+};
+
+type PricePosition = "within" | "above" | "far_above";
 
 const zones = locationContext.zones as Zone[];
 const events = locationContext.events as EventContext[];
@@ -62,9 +81,115 @@ export function buildGroundingContext(request: RiskCheckRequest): GroundingSigna
     getRouteDistanceGrounding(request),
     getTaxiFareGrounding(request),
     getVenueGrounding(request),
+    getFoodPriceGrounding(request),
     getEventGrounding(request),
     getWebGroundingStatus()
   ].filter((signal): signal is GroundingSignal => Boolean(signal));
+}
+
+function getFoodPriceGrounding(request: RiskCheckRequest): GroundingSignal | null {
+  const combined = combineText(request);
+  const text = `${request.message} ${request.extractedText ?? ""} ${request.evidenceText ?? ""}`;
+  const hints = extractEvidenceHints(text);
+  const prices = hints.prices
+    .map(priceToNumber)
+    .filter((value): value is number => typeof value === "number" && value >= 30)
+    .sort((a, b) => a - b);
+
+  if (!hasMenuContext(combined) || prices.length === 0 || request.city.toLowerCase() !== "bangkok") {
+    return null;
+  }
+
+  const reference = foodPriceReference.bangkok;
+  const tiers = reference.tiers as FoodTier[];
+  const sources = reference.sources as FoodSource[];
+  const venueMatch = getKnownVenueMatch(request);
+  const likelyTier = chooseFoodTier(combined, tiers, venueMatch?.venue.food_tier_id);
+  const highestPrice = Math.max(...prices);
+  const itemBand = likelyTier.typical_item_baht;
+  const mealBand = likelyTier.typical_meal_baht;
+  const pricePosition = getPricePosition(highestPrice, itemBand);
+  const confidence = venueMatch ? "high" : inferFoodTierConfidence(combined);
+  const dishNotes = getDishNotes(combined);
+  const allTierSummary = tiers
+    .map((tier) => `${tier.label}: ${tier.typical_item_baht[0]}-${tier.typical_item_baht[1]} THB/item`)
+    .join("; ");
+
+  return {
+    tool: "food_price_reference",
+    title: `Food price tier: ${likelyTier.label}`,
+    summary:
+      `Detected menu prices: ${prices.join(", ")} THB. Highest detected price is ${highestPrice} THB, which is ${formatPricePosition(pricePosition)} the likely ${likelyTier.label} item band (${itemBand[0]}-${itemBand[1]} THB) and meal band (${mealBand[0]}-${mealBand[1]} THB). ` +
+      `${likelyTier.notes} ${dishNotes ? `${dishNotes} ` : ""}` +
+      `Reference tiers: ${allTierSummary}. Use venue/location confirmation before treating premium prices as fraud.`,
+    confidence,
+    citations: sources.slice(0, 5).map((source) => ({ title: source.title, url: source.url })),
+    metadata: {
+      detected_prices_baht: prices,
+      highest_price_baht: highestPrice,
+      likely_tier: likelyTier.id,
+      likely_tier_label: likelyTier.label,
+      normal_item_range_baht: itemBand,
+      normal_meal_range_baht: mealBand,
+      price_position: pricePosition,
+      dish_notes: dishNotes ? [dishNotes] : [],
+      matched_known_venue: venueMatch?.venue.name ?? null,
+      tier_confidence: confidence,
+      reference_tiers: tiers.map((tier) => ({
+        id: tier.id,
+        label: tier.label,
+        typical_item_baht: tier.typical_item_baht,
+        typical_meal_baht: tier.typical_meal_baht
+      }))
+    }
+  };
+}
+
+function chooseFoodTier(text: string, tiers: FoodTier[], venueTierId?: string) {
+  if (venueTierId) return tiers.find((tier) => tier.id === venueTierId) || tiers[1];
+  if (/jay fai|michelin|premium|famous venue|destination venue|special crab|signature crab/i.test(text)) {
+    return tiers.find((tier) => tier.id === "premium_famous_venue") || tiers[tiers.length - 1];
+  }
+  if (/paragon|emporium|emquartier|centralworld|gaysorn|central embassy|department store|higher-end|high end|sit-down|fine dining|food hall/i.test(text)) {
+    return tiers.find((tier) => tier.id === "department_store_restaurant") || tiers[3];
+  }
+  if (/food court|terminal 21|pier 21|mbk|mall/i.test(text)) {
+    return tiers.find((tier) => tier.id === "mall_food_court") || tiers[2];
+  }
+  if (/street food|stall|market|local/i.test(text)) {
+    return tiers.find((tier) => tier.id === "street_food_local_stall") || tiers[0];
+  }
+  return tiers.find((tier) => tier.id === "local_casual_restaurant") || tiers[1];
+}
+
+function inferFoodTierConfidence(text: string): GroundingSignal["confidence"] {
+  return /jay fai|michelin|premium|paragon|emporium|emquartier|centralworld|gaysorn|central embassy|food court|terminal 21|pier 21|mbk|street food|stall|market|local|department store|food hall|fine dining/i.test(text)
+    ? "medium"
+    : "low";
+}
+
+function getDishNotes(text: string) {
+  const dishHints = foodPriceReference.bangkok.dish_hints as Array<{ keywords: string[]; price_multiplier_note: string }>;
+  return dishHints
+    .filter((hint) => hint.keywords.some((keyword) => text.includes(keyword.toLowerCase())))
+    .map((hint) => hint.price_multiplier_note)
+    .join(" ");
+}
+
+function priceToNumber(value: string) {
+  const number = Number(value.replace(/[^\d]/g, ""));
+  return Number.isFinite(number) ? number : null;
+}
+
+function getPricePosition(highestPrice: number, itemBand: [number, number]): PricePosition {
+  if (highestPrice <= itemBand[1]) return "within";
+  if (highestPrice <= itemBand[1] * 1.6) return "above";
+  return "far_above";
+}
+
+function formatPricePosition(position: PricePosition) {
+  if (position === "far_above") return "far above";
+  return position;
 }
 
 export function getKnownVenueMatch(request: RiskCheckRequest) {
@@ -157,7 +282,7 @@ function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null
   ].filter((signal) => combined.includes(signal));
 
   if (matchedRoute) {
-    const typicalRange = matchedRoute.typical_meter_fare_baht;
+    const typicalRange = matchedRoute.typical_meter_fare_baht as [number, number];
     const isPlausibleOrCheap = quotedFareBaht !== null && quotedFareBaht <= typicalRange[1];
     return {
       tool: "fare_reference",
@@ -167,7 +292,13 @@ function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null
           ? `${quotedFareBaht} THB is plausible or cheap for this short central Bangkok route. ${matchedRoute.interpretation}`
           : `Compare the quote against the ${typicalRange[0]}-${typicalRange[1]} THB demo baseline for this route and the official Bangkok meter rule. Suspicious fare signals found: ${suspiciousFareSignals.length ? suspiciousFareSignals.join(", ") : "none"}.`,
       confidence: "high",
-      citations: [bangkokTaxiCitation]
+      citations: [bangkokTaxiCitation],
+      metadata: {
+        quoted_fare_baht: quotedFareBaht,
+        baseline_range_baht: typicalRange,
+        fare_position: getFarePosition(quotedFareBaht, typicalRange),
+        suspicious_fare_signals: suspiciousFareSignals
+      }
     };
   }
 
@@ -179,7 +310,14 @@ function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null
       title: "Bangkok taxi fare estimate",
       summary: `Estimated route: ${routeEstimate.origin.name} to ${routeEstimate.destination.name}, about ${routeEstimate.estimatedRoadKm.toFixed(1)} km by road approximation. Baseline meter fare without heavy waiting time is about ${estimateBaht.low}-${estimateBaht.high} THB. Quoted fare: ${quotedFareBaht ?? "not provided"} THB. Escalate only if the quote is high for this baseline or suspicious signals are present.`,
       confidence: "medium",
-      citations: [bangkokTaxiCitation]
+      citations: [bangkokTaxiCitation],
+      metadata: {
+        quoted_fare_baht: quotedFareBaht,
+        baseline_range_baht: [estimateBaht.low, estimateBaht.high],
+        route_distance_km: routeEstimate.estimatedRoadKm,
+        fare_position: getFarePosition(quotedFareBaht, [estimateBaht.low, estimateBaht.high]),
+        suspicious_fare_signals: suspiciousFareSignals
+      }
     };
   }
 
@@ -188,14 +326,25 @@ function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null
     title: "Bangkok taxi meter rule",
     summary: `Official Bangkok taxi grounding: first kilometer is ${bangkokReference.official_meter_rule.first_km_baht} THB, then ${bangkokReference.official_meter_rule.km_1_to_10_baht_per_km} THB/km from 1-10 km, plus waiting charges in heavy traffic. Escalate only when the fare is high for the route or concrete suspicious signals exist.`,
     confidence: "high",
-    citations: [bangkokTaxiCitation]
+    citations: [bangkokTaxiCitation],
+    metadata: {
+      quoted_fare_baht: quotedFareBaht,
+      suspicious_fare_signals: suspiciousFareSignals
+    }
   };
+}
+
+function getFarePosition(quotedFareBaht: number | null, baselineRange: [number, number]) {
+  if (quotedFareBaht === null) return "unknown";
+  if (quotedFareBaht <= baselineRange[1]) return "within_or_below";
+  if (quotedFareBaht <= baselineRange[1] * 1.5) return "above";
+  return "far_above";
 }
 
 function getVenueGrounding(request: RiskCheckRequest): GroundingSignal | null {
   const combined = combineText(request);
   const match = getKnownVenueMatch(request);
-  const mentionsMenu = hasMenuContext(combined);
+  const mentionsMenu = hasMenuContext(combined) && hasPriceMention(combined);
 
   if (!match && mentionsMenu) {
     return {
@@ -317,7 +466,11 @@ function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) 
 }
 
 function hasMenuContext(text: string) {
-  return /menu|เมนู|restaurant|ร้าน|food|dish|crab|omelette|noodle|rice|pad thai|ผัด|อาหาร/i.test(text);
+  return /menu|เมนู|food|dish|crab|omelette|noodle|rice|pad thai|ผัด|อาหาร|ราคา|price/i.test(text);
+}
+
+function hasPriceMention(text: string) {
+  return /(?:฿\s*)?\d{2,6}(?:,\d{3})?\s*(?:baht|thb|บาท|฿)/i.test(text);
 }
 
 function toRadians(value: number) {

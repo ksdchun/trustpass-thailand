@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { analyzeSituation } from "@/lib/situation-service";
+import { recordCheck } from "@/lib/intelligence-store";
+import { analyzeSituation, toLegacyRiskResult } from "@/lib/situation-service";
 import type { SituationAnalyzeRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -26,5 +27,15 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json(await analyzeSituation(payload, { allowClarification: true }));
+  const response = await analyzeSituation(payload, { allowClarification: true });
+
+  if (response.status === "completed") {
+    try {
+      recordCheck(toLegacyRiskResult(response), payload.city);
+    } catch (error) {
+      console.error("Failed to record completed situation analysis in intelligence store", error);
+    }
+  }
+
+  return NextResponse.json(response);
 }

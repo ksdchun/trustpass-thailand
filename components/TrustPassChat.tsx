@@ -25,13 +25,32 @@ import {
   Upload,
   X
 } from "lucide-react";
-import type { Language, RiskCheckResult, RiskLevel } from "@/lib/types";
+import type { Language, RiskCheckResult, RiskLevel, UserLocation } from "@/lib/types";
 
 const cities = ["Bangkok", "Phuket", "Pattaya", "Chiang Mai"];
 const languageOptions: Array<{ value: Language; label: string }> = [
   { value: "English", label: "English" },
   { value: "Chinese", label: "中文" },
   { value: "Thai", label: "ไทย" }
+];
+
+const demoLocations: Array<{ id: string; label: string; location: UserLocation | null }> = [
+  { id: "none", label: "No mock location", location: null },
+  {
+    id: "jay-fai",
+    label: "Jay Fai",
+    location: { latitude: 13.7526, longitude: 100.5048, accuracy: 25, source: "manual" }
+  },
+  {
+    id: "siam-paragon",
+    label: "Siam Paragon mall",
+    location: { latitude: 13.7466, longitude: 100.5347, accuracy: 35, source: "manual" }
+  },
+  {
+    id: "chatuchak",
+    label: "Chatuchak Market",
+    location: { latitude: 13.7999, longitude: 100.5502, accuracy: 45, source: "manual" }
+  }
 ];
 
 const sampleChips: Array<{ label: string; text: string }> = [
@@ -135,6 +154,10 @@ export function TrustPassChat() {
   const [city, setCity] = useState("Bangkok");
   const [language, setLanguage] = useState<Language>("English");
   const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [demoLocationId, setDemoLocationId] = useState("none");
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [extractedText, setExtractedText] = useState("");
@@ -182,6 +205,14 @@ export function TrustPassChat() {
     if (dropped) chooseFile(dropped);
   }
 
+  function handleDemoLocationChange(id: string) {
+    setDemoLocationId(id);
+    setLocationError("");
+    const match = demoLocations.find((location) => location.id === id);
+    setUserLocation(match?.location ?? null);
+    if (match?.location) setCity("Bangkok");
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if ((!message.trim() && !file) || isChecking) return;
@@ -209,7 +240,7 @@ export function TrustPassChat() {
           language,
           incidentDateIso: new Date(`${incidentDate}T12:00:00+07:00`).toISOString(),
           extractedText: extracted,
-          userLocation,
+          userLocation: userLocation ?? undefined,
           attachmentsMetadata: file ? [{ name: file.name, type: file.type, size: file.size }] : []
         })
       });
@@ -244,6 +275,7 @@ export function TrustPassChat() {
           accuracy: position.coords.accuracy,
           source: "browser"
         });
+        setDemoLocationId("none");
         setIsLocating(false);
       },
       (error) => {
@@ -279,6 +311,12 @@ export function TrustPassChat() {
           onDrop={onDrop}
           onSubmit={handleSubmit}
           isChecking={isChecking}
+          demoLocationId={demoLocationId}
+          setDemoLocationId={handleDemoLocationChange}
+          userLocation={userLocation}
+          isLocating={isLocating}
+          locationError={locationError}
+          onUseLocation={handleUseLocation}
         />
 
         <div className="min-w-0">
@@ -323,13 +361,20 @@ type FormPanelProps = {
   onDrop: (e: React.DragEvent) => void;
   onSubmit: (e: FormEvent) => void;
   isChecking: boolean;
+  demoLocationId: string;
+  setDemoLocationId: (v: string) => void;
+  userLocation: UserLocation | null;
+  isLocating: boolean;
+  locationError: string;
+  onUseLocation: () => void;
 };
 
 function FormPanel(props: FormPanelProps) {
   const {
     message, setMessage, city, setCity, language, setLanguage,
     file, previewUrl, extractedText, chooseFile, fileInputRef, dropZoneRef,
-    isDragging, setIsDragging, onDrop, onSubmit, isChecking
+    isDragging, setIsDragging, onDrop, onSubmit, isChecking,
+    demoLocationId, setDemoLocationId, userLocation, isLocating, locationError, onUseLocation
   } = props;
 
   return (
@@ -451,6 +496,43 @@ function FormPanel(props: FormPanelProps) {
           </select>
         </Field>
       </div>
+
+      <Card title="Location context" optional>
+        <div className="grid gap-3">
+          <button
+            type="button"
+            onClick={onUseLocation}
+            disabled={isLocating}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4] disabled:cursor-not-allowed disabled:text-[#9A9A9A]"
+          >
+            {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+            {isLocating ? "Reading location..." : "Use browser location"}
+          </button>
+
+          <Field label="Demo location" icon={<MapPin className="h-3.5 w-3.5" />}>
+            <select
+              value={demoLocationId}
+              onChange={(e) => setDemoLocationId(e.target.value)}
+              className="w-full rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
+            >
+              {demoLocations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          {userLocation && (
+            <p className="rounded-md bg-[#EFF6FC] px-3 py-2 text-xs font-medium text-[#0B5394]">
+              Location set: {userLocation.latitude.toFixed(4)}, {userLocation.longitude.toFixed(4)}
+            </p>
+          )}
+          {locationError && (
+            <p className="rounded-md bg-[#FBE9EA] px-3 py-2 text-xs font-medium text-[#A4262C]">{locationError}</p>
+          )}
+        </div>
+      </Card>
 
       <button
         type="submit"

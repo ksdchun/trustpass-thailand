@@ -4,6 +4,7 @@ import type { EvidenceExtractResult } from "@/lib/types";
 export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtractResult> {
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const key = process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
+  const timeoutMs = Number(process.env.AZURE_DOCUMENT_INTELLIGENCE_TIMEOUT_MS || 10000);
 
   if (!endpoint || !key) {
     return fallbackEvidence(file.name, "Azure Document Intelligence is not configured.");
@@ -11,7 +12,7 @@ export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtra
 
   try {
     const bytes = await file.arrayBuffer();
-    const analyzeResponse = await fetch(
+    const analyzeResponse = await fetchWithTimeout(
       `${endpoint.replace(/\/$/, "")}/documentintelligence/documentModels/prebuilt-read:analyze?api-version=2024-11-30`,
       {
         method: "POST",
@@ -20,7 +21,8 @@ export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtra
           "Ocp-Apim-Subscription-Key": key
         },
         body: bytes
-      }
+      },
+      timeoutMs
     );
 
     const operationLocation = analyzeResponse.headers.get("operation-location");
@@ -30,9 +32,13 @@ export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtra
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 750));
-      const resultResponse = await fetch(operationLocation, {
-        headers: { "Ocp-Apim-Subscription-Key": key }
-      });
+      const resultResponse = await fetchWithTimeout(
+        operationLocation,
+        {
+          headers: { "Ocp-Apim-Subscription-Key": key }
+        },
+        timeoutMs
+      );
       const result = await resultResponse.json();
 
       if (result.status === "succeeded") {
@@ -55,6 +61,20 @@ export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtra
     return fallbackEvidence(file.name, "Azure OCR timed out before a completed result was returned.");
   } catch {
     return fallbackEvidence(file.name, "Azure OCR failed; ask the user to paste key text if needed.");
+  }
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

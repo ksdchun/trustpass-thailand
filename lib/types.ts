@@ -20,7 +20,7 @@ export type UserLocation = {
 };
 
 export type GroundingSignal = {
-  tool: "location" | "route_distance" | "fare_reference" | "event_context" | "venue_reference" | "web_grounding";
+  tool: "location" | "route_distance" | "fare_reference" | "food_price_reference" | "event_context" | "venue_reference" | "web_grounding";
   title: string;
   summary: string;
   confidence: "low" | "medium" | "high";
@@ -28,6 +28,7 @@ export type GroundingSignal = {
     title: string;
     url: string;
   }>;
+  metadata?: Record<string, unknown>;
 };
 
 export type RiskCheckRequest = {

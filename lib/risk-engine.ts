@@ -1,7 +1,7 @@
 import riskPatterns from "@/data/risk_patterns.json";
 import contacts from "@/data/emergency_contacts.json";
 import { SYSTEM_PROMPT, languageInstruction } from "@/lib/system-prompt";
-import type { RiskCheckRequest, RiskCheckResult, RiskLevel, RiskPattern } from "@/lib/types";
+import type { GroundingSignal, RiskCheckRequest, RiskCheckResult, RiskLevel, RiskPattern } from "@/lib/types";
 
 const typedPatterns = riskPatterns as RiskPattern[];
 
@@ -24,7 +24,9 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
   const combined = `${request.message} ${request.extractedText ?? ""} ${request.evidenceText ?? ""} ${request.city}`.toLowerCase();
   const matches = typedPatterns
     .map((pattern) => {
-      const hits = pattern.signals.filter((signal) => combined.includes(signal.toLowerCase()));
+      const hits = patternApplies(pattern.id, combined)
+        ? pattern.signals.filter((signal) => combined.includes(signal.toLowerCase()))
+        : [];
       return { pattern, hits };
     })
     .filter((match) => match.hits.length > 0)
@@ -85,11 +87,15 @@ export function buildPrompt(request: RiskCheckRequest, baseline: RiskCheckResult
           tourist_input: {
             message: request.message,
             extracted_evidence_text: request.extractedText ?? null,
+            evidence_text: request.evidenceText ?? null,
             city: request.city,
+            incident_date_iso: request.incidentDateIso ?? null,
+            user_location: request.userLocation ?? null,
             output_language: request.language,
             attachments: request.attachmentsMetadata ?? []
           },
           local_rule_baseline: baseline,
+          grounding_context: grounding,
           emergency_contacts: contacts
         },
         null,
@@ -119,9 +125,20 @@ export function normalizeRiskResult(input: unknown, fallback: RiskCheckResult, s
       english: value.incident_report_summary?.english || fallback.incident_report_summary.english,
       thai: value.incident_report_summary?.thai || fallback.incident_report_summary.thai
     },
-    grounding: groundingOr(value.grounding, fallback.grounding),
+    grounding: fallback.grounding || groundingOr(value.grounding, fallback.grounding),
     source
   };
+}
+
+function patternApplies(patternId: string, text: string) {
+  if (patternId === "taxi_meter_refusal") {
+    return hasTaxiOrRideContext(text);
+  }
+  return true;
+}
+
+function hasTaxiOrRideContext(text: string) {
+  return /\btaxi\b|cab|meter|fare|grab|bolt|tuk-?tuk|driver.*(?:take|ride|drive)|(?:ride|drive).*from/i.test(text);
 }
 
 function arrayOr(value: unknown, fallback: string[]) {

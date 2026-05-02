@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { buildPrompt, classifyWithLocalRules, normalizeRiskResult } from "@/lib/risk-engine";
 import { recordCheck } from "@/lib/intelligence-store";
+import { analyzeSituation, normalizeAnalyzeRequest, toLegacyRiskResult } from "@/lib/situation-service";
 import type { RiskCheckRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
-
-const REQUEST_TIMEOUT_MS = 5000;
 
 export async function POST(request: Request) {
   const body = (await request.json()) as Partial<RiskCheckRequest>;
@@ -19,62 +16,27 @@ export async function POST(request: Request) {
     );
   }
 
-  const fallback = classifyWithLocalRules(payload);
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+  const response = await analyzeSituation(
+    {
+      message: payload.message,
+      city: payload.city,
+      language: payload.language,
+      incidentDateIso: payload.incidentDateIso || new Date().toISOString(),
+      evidenceText: payload.evidenceText || payload.extractedText,
+      userLocation: payload.userLocation,
+      attachmentsMetadata: payload.attachmentsMetadata,
+      clarificationAnswers: payload.clarificationAnswers
+    },
+    { allowClarification: false }
+  );
 
-  if (!endpoint || !apiKey || !deployment) {
-    try {
-      recordCheck(fallback, payload.city);
-    } catch (e) {
-      console.error("Failed to record check in intelligence store", e);
-    }
-    return NextResponse.json(fallback);
-  }
-
-  const baseURL = endpoint.replace(/\/$/, "");
+  const result = toLegacyRiskResult(response);
 
   try {
-    const client = new OpenAI({
-      baseURL,
-      apiKey,
-      timeout: REQUEST_TIMEOUT_MS
-    });
-
-    const completion = await client.chat.completions.create({
-      model: deployment,
-      messages: buildPrompt(payload, fallback),
-      temperature: 0.2,
-      max_tokens: 900,
-      response_format: { type: "json_object" }
-    });
-
-    const content = completion.choices[0]?.message?.content;
-    const parsed = content ? JSON.parse(content) : null;
-    const result = normalizeRiskResult(parsed, fallback, "azure-openai");
-    
-    // Track intelligence data
-    try {
-      recordCheck(result, payload.city);
-    } catch (e) {
-      console.error("Failed to record check in intelligence store", e);
-    }
-
-    return NextResponse.json(result);
+    recordCheck(result, payload.city);
   } catch (error) {
-    console.error(
-      `[risk-check] Azure call failed (baseURL=${baseURL}, deployment=${deployment}), using fallback:`,
-      error
-    );
-
-    // Track intelligence data (fallback)
-    try {
-      recordCheck(fallback, payload.city);
-    } catch (e) {
-      console.error("Failed to record check in intelligence store", e);
-    }
-
-    return NextResponse.json(fallback);
+    console.error("Failed to record check in intelligence store", error);
   }
+
+  return NextResponse.json(result);
 }

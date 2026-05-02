@@ -1,0 +1,72 @@
+{
+  "zones": [
+    {
+      "id": "bangkok_silom",
+      "city": "Bangkok",
+      "name": "Silom / Sala Daeng",
+      "bounds": { "minLat": 13.719, "maxLat": 13.735, "minLng": 100.523, "maxLng": 100.542 },
+      "context": "Central Bangkok business and nightlife area with BTS/MRT access. Short taxi hops to Siam are normally inexpensive, but traffic and event road closures can add time."
+    },
+    {
+      "id": "bangkok_siam",
+      "city": "Bangkok",
+      "name": "Siam / Pathum Wan",
+      "bounds": { "minLat": 13.738, "maxLat": 13.751, "minLng": 100.527, "maxLng": 100.538 },
+      "context": "Central shopping district around Siam Paragon, Siam Center, and BTS Siam. Taxi trips within central Bangkok should normally use the meter."
+    },
+    {
+      "id": "bangkok_wat_pho",
+      "city": "Bangkok",
+      "name": "Grand Palace / Wat Pho",
+      "bounds": { "minLat": 13.738, "maxLat": 13.755, "minLng": 100.487, "maxLng": 100.500 },
+      "context": "Major tourist area near temples and river piers. Visitors may encounter fixed-price taxi or tuk-tuk offers near attractions."
+    },
+    {
+      "id": "phuket_patong",
+      "city": "Phuket",
+      "name": "Patong",
+      "bounds": { "minLat": 7.882, "maxLat": 7.917, "minLng": 98.285, "maxLng": 98.315 },
+      "context": "High-tourism beach area. Tour, taxi, nightlife, and rental offers should be checked for clear pricing, receipts, and operator identity."
+    },
+    {
+      "id": "chiang_mai_old_city",
+      "city": "Chiang Mai",
+      "name": "Chiang Mai Old City",
+      "bounds": { "minLat": 18.781, "maxLat": 18.797, "minLng": 98.979, "maxLng": 98.997 },
+      "context": "Walkable tourist zone with temples, rentals, tours, and guesthouses. Passport retention and unclear rental terms are common risk patterns to check."
+    },
+    {
+      "id": "mae_sot_border",
+      "city": "Mae Sot",
+      "name": "Mae Sot / Border Area",
+      "bounds": { "minLat": 16.67, "maxLat": 16.76, "minLng": 98.52, "maxLng": 98.62 },
+      "context": "Border-adjacent area. Unverified job, casting, pickup, secrecy, or controlled transport instructions should be treated as severe risk signals."
+    }
+  ],
+  "venues": [
+    {
+      "id": "jay_fai",
+      "city": "Bangkok",
+      "name": "Jay Fai",
+      "keywords": ["jay fai", "raan jay fai", "เจ๊ไฝ"],
+      "lat": 13.7526,
+      "lng": 100.5048,
+      "radius_m": 160,
+      "context": "Famous Michelin-recognized Bangkok street food restaurant known for premium crab dishes and unusually high prices compared with typical street food.",
+      "menu_price_band_baht": [500, 2500],
+      "verification_advice": "If the user is truly at Jay Fai or the menu clearly belongs to Jay Fai, high menu prices can be normal. The safer step is to verify the printed menu, bill, and staff confirmation rather than treating price alone as fraud."
+    }
+  ],
+  "events": [
+    {
+      "id": "songkran",
+      "name": "Songkran",
+      "keywords": ["songkran", "สงกรานต์"],
+      "month": 4,
+      "start_day": 13,
+      "end_day": 15,
+      "buffer_days": 2,
+      "context": "Songkran can cause road closures, traffic, crowding, and longer travel times. Higher travel time is plausible, but the event alone is not a scam signal."
+    }
+  ]
+}

@@ -10,15 +10,9 @@ const REQUEST_TIMEOUT_MS = 5000;
 
 export async function POST(request: Request) {
   const body = (await request.json()) as Partial<RiskCheckRequest>;
-  const payload: RiskCheckRequest = {
-    message: body.message?.trim() || "",
-    city: body.city || "Bangkok",
-    language: body.language || "English",
-    extractedText: body.extractedText?.trim(),
-    attachmentsMetadata: body.attachmentsMetadata || []
-  };
+  const payload = normalizeAnalyzeRequest(body);
 
-  if (!payload.message && !payload.extractedText) {
+  if (!payload.message && !payload.extractedText && !payload.evidenceText) {
     return NextResponse.json(
       { error: "Please describe the situation or attach evidence before checking risk." },
       { status: 400 }

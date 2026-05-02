@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test:backend": "node scripts/test-backend-contract.mjs",
+    "test:azure": "node scripts/test-azure-openai.mjs",
     "start": "next start",
     "lint": "next lint"
   },

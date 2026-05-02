@@ -3,6 +3,7 @@ import type { RiskLevel } from "@/lib/types";
 export const navItems = [
   { href: "/", label: "Overview" },
   { href: "/check", label: "Risk Check" },
+  { href: "/playground", label: "AI Test" },
   { href: "/scenarios", label: "Scenarios" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/architecture", label: "Architecture" }

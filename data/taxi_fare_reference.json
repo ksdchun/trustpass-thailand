@@ -1,0 +1,53 @@
+{
+  "bangkok": {
+    "official_meter_rule": {
+      "source": "Thailand.go.th, Bangkok taxis increase fares, updated 2023-07-12",
+      "first_km_baht": 40,
+      "km_1_to_10_baht_per_km": 6.5,
+      "waiting_baht_per_minute_under_6_kmh": 3,
+      "notes": [
+        "Traffic can add waiting charges, especially during holidays or road closures.",
+        "Tolls and airport queue surcharges are separate from the meter."
+      ]
+    },
+    "places": [
+      {
+        "id": "silom",
+        "name": "Silom",
+        "keywords": ["silom", "sala daeng"],
+        "lat": 13.7286,
+        "lng": 100.534
+      },
+      {
+        "id": "siam_paragon",
+        "name": "Siam Paragon",
+        "keywords": ["siam paragon", "paragon", "siam"],
+        "lat": 13.7466,
+        "lng": 100.5347
+      },
+      {
+        "id": "wat_pho",
+        "name": "Wat Pho",
+        "keywords": ["wat pho", "วัดโพธิ์"],
+        "lat": 13.7465,
+        "lng": 100.493
+      },
+      {
+        "id": "grand_palace",
+        "name": "Grand Palace",
+        "keywords": ["grand palace", "พระบรมมหาราชวัง"],
+        "lat": 13.7500,
+        "lng": 100.4913
+      }
+    ],
+    "known_city_routes": [
+      {
+        "origin_keywords": ["silom"],
+        "destination_keywords": ["siam paragon", "paragon", "siam"],
+        "approx_distance_km": [2.5, 3.5],
+        "typical_meter_fare_baht": [50, 90],
+        "interpretation": "A 50 THB quote from Silom to Siam Paragon is low but plausible for a short central Bangkok taxi ride if there are no hidden fees, pressure, or meter refusal."
+      }
+    ]
+  }
+}

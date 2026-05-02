@@ -12,6 +12,7 @@ import {
   FileText,
   Image as ImageIcon,
   Languages,
+  LocateFixed,
   Loader2,
   MapPin,
   Maximize2,
@@ -133,6 +134,7 @@ export function TrustPassChat() {
   const [message, setMessage] = useState("");
   const [city, setCity] = useState("Bangkok");
   const [language, setLanguage] = useState<Language>("English");
+  const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [extractedText, setExtractedText] = useState("");
@@ -205,7 +207,9 @@ export function TrustPassChat() {
           message,
           city,
           language,
+          incidentDateIso: new Date(`${incidentDate}T12:00:00+07:00`).toISOString(),
           extractedText: extracted,
+          userLocation,
           attachmentsMetadata: file ? [{ name: file.name, type: file.type, size: file.size }] : []
         })
       });
@@ -221,6 +225,37 @@ export function TrustPassChat() {
     } finally {
       setIsChecking(false);
     }
+  }
+
+  function handleUseLocation() {
+    setLocationError("");
+
+    if (!navigator.geolocation) {
+      setLocationError("Location is not supported in this browser.");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          source: "browser"
+        });
+        setIsLocating(false);
+      },
+      (error) => {
+        setLocationError(error.message || "Could not read browser location.");
+        setIsLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
   }
 
   return (

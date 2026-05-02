@@ -21,7 +21,7 @@ const defaultEvidence = [
 const defaultThaiPhrase = "ขอเวลาตรวจสอบข้อมูลก่อนดำเนินการต่อครับ/ค่ะ";
 
 export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResult {
-  const combined = `${request.message} ${request.extractedText ?? ""} ${request.city}`.toLowerCase();
+  const combined = `${request.message} ${request.extractedText ?? ""} ${request.evidenceText ?? ""} ${request.city}`.toLowerCase();
   const matches = typedPatterns
     .map((pattern) => {
       const hits = pattern.signals.filter((signal) => combined.includes(signal.toLowerCase()));
@@ -71,7 +71,7 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
   };
 }
 
-export function buildPrompt(request: RiskCheckRequest, baseline: RiskCheckResult) {
+export function buildPrompt(request: RiskCheckRequest, baseline: RiskCheckResult, grounding: GroundingSignal[]) {
   return [
     {
       role: "system" as const,
@@ -119,12 +119,24 @@ export function normalizeRiskResult(input: unknown, fallback: RiskCheckResult, s
       english: value.incident_report_summary?.english || fallback.incident_report_summary.english,
       thai: value.incident_report_summary?.thai || fallback.incident_report_summary.thai
     },
+    grounding: groundingOr(value.grounding, fallback.grounding),
     source
   };
 }
 
 function arrayOr(value: unknown, fallback: string[]) {
   return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : fallback;
+}
+
+function groundingOr(value: unknown, fallback?: GroundingSignal[]) {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .filter((item): item is GroundingSignal => {
+      if (!item || typeof item !== "object") return false;
+      const candidate = item as Partial<GroundingSignal>;
+      return Boolean(candidate.tool && candidate.title && candidate.summary && candidate.confidence);
+    })
+    .slice(0, 4);
 }
 
 function evidenceFor(category: string) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { buildPrompt, classifyWithLocalRules, normalizeRiskResult } from "@/lib/risk-engine";
+import { recordCheck } from "@/lib/intelligence-store";
 import type { RiskCheckRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,6 +31,11 @@ export async function POST(request: Request) {
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
 
   if (!endpoint || !apiKey || !deployment) {
+    try {
+      recordCheck(fallback, payload.city);
+    } catch (e) {
+      console.error("Failed to record check in intelligence store", e);
+    }
     return NextResponse.json(fallback);
   }
 
@@ -52,12 +58,29 @@ export async function POST(request: Request) {
 
     const content = completion.choices[0]?.message?.content;
     const parsed = content ? JSON.parse(content) : null;
-    return NextResponse.json(normalizeRiskResult(parsed, fallback, "azure-openai"));
+    const result = normalizeRiskResult(parsed, fallback, "azure-openai");
+    
+    // Track intelligence data
+    try {
+      recordCheck(result, payload.city);
+    } catch (e) {
+      console.error("Failed to record check in intelligence store", e);
+    }
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error(
       `[risk-check] Azure call failed (baseURL=${baseURL}, deployment=${deployment}), using fallback:`,
       error
     );
+
+    // Track intelligence data (fallback)
+    try {
+      recordCheck(fallback, payload.city);
+    } catch (e) {
+      console.error("Failed to record check in intelligence store", e);
+    }
+
     return NextResponse.json(fallback);
   }
 }

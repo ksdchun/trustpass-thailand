@@ -1,151 +1,202 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, BarChart3, MapPin, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BarChart3, AlertTriangle, MapPin, Activity, ShieldAlert } from "lucide-react";
 import { SiteNav } from "@/components/SiteNav";
-import demoCases from "@/data/demo_cases.json";
+import { ThailandHeatmap } from "@/components/ThailandHeatmap";
 
-type DashboardCase = {
+type IntelligenceReport = {
+  id: string;
+  timestamp: string;
   city: string;
   category: string;
-  riskLevel: string;
-  signals: string[];
-  createdAt?: string;
+  risk_level: string;
+  risk_score: number;
+  signal_count: number;
+};
+
+type IntelligenceData = {
+  kpis: {
+    totalChecks7d: number;
+    emergencyCount7d: number;
+    topCategory: string;
+    mostAffectedCity: string;
+  };
+  cityStats: Record<string, { total: number; emergency: number; topCategory: string; maxRiskLevel: string }>;
+  recentReports: IntelligenceReport[];
 };
 
 export default function DashboardPage() {
-  const [cases, setCases] = useState<DashboardCase[]>(demoCases as DashboardCase[]);
+  const [data, setData] = useState<IntelligenceData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  useEffect(() => {
-    const stored = JSON.parse(window.localStorage.getItem("trustpass-cases") || "[]") as DashboardCase[];
-    if (stored.length) setCases([...stored, ...(demoCases as DashboardCase[])]);
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/intelligence");
+      if (!res.ok) throw new Error("Failed to fetch");
+      const jsonData = await res.json() as IntelligenceData;
+      setData(jsonData);
+      setLastUpdated(new Date());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const cityCounts = useMemo(() => countBy(cases, "city"), [cases]);
-  const categoryCounts = useMemo(() => countBy(cases, "category"), [cases]);
-  const riskCounts = useMemo(() => countBy(cases, "riskLevel"), [cases]);
-  const signalCounts = useMemo(() => countSignals(cases), [cases]);
+  useEffect(() => {
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 30000); // 30 seconds
+    return () => clearInterval(interval);
+  }, [fetchDashboardData]);
+
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
+  const getRiskBadgeColor = (level: string) => {
+    switch (level.toLowerCase()) {
+      case "low": return "bg-green-100 text-green-800 border-green-200";
+      case "caution": return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "high": return "bg-orange-100 text-orange-800 border-orange-200";
+      case "emergency": return "bg-red-100 text-red-800 border-red-200";
+      default: return "bg-slate-100 text-slate-800 border-slate-200";
+    }
+  };
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-slate-50">
       <SiteNav />
       <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <Link href="/" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-azure hover:text-fluent-blueDark">
-          <ArrowLeft className="h-4 w-4" />
-          Back to overview
-        </Link>
+        <div className="flex items-center justify-between mb-5">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-azure hover:text-fluent-blueDark">
+            <ArrowLeft className="h-4 w-4" />
+            Back to overview
+          </Link>
+          
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-500 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+            </span>
+            Live · Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
 
-        <header className="rounded-[8px] border border-slate-200 bg-white/90 p-6 shadow-soft">
+        <header className="rounded-[8px] border border-slate-200 bg-white p-6 shadow-sm mb-6">
           <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-azure">
-            <BarChart3 className="h-4 w-4" />
-            Hotel / TAT / Tourist Police Dashboard
+            <Activity className="h-4 w-4" />
+            Real-time Threat Intelligence
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-ink">Tourism trust intelligence</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            Individual tourist checks become structured signals for scam categories, hotspot cities, and common risk patterns. This is the B2B/B2G transformation layer for hotels, TAT, tourist police, and legitimate operators.
+          <h1 className="mt-2 text-3xl font-bold text-ink">B2G Dashboard</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            Live aggregated signals from tourist risk-checks across Thailand. Used by TAT and Tourist Police to monitor hotspots, identify emerging scam patterns, and deploy preventive resources.
           </p>
         </header>
 
-        <section className="mt-5 grid gap-4 md:grid-cols-3">
-          <Metric title="Total checks" value={cases.length.toString()} />
-          <Metric title="High or emergency" value={cases.filter((item) => ["High", "Emergency"].includes(item.riskLevel)).length.toString()} />
-          <Metric title="Cities covered" value={Object.keys(cityCounts).length.toString()} />
-        </section>
-
-        <section className="mt-5 grid gap-5 lg:grid-cols-2">
-          <Panel title="Cases by city" icon={<MapPin className="h-4 w-4" />}>
-            <BarList data={cityCounts} />
-          </Panel>
-          <Panel title="Risk levels" icon={<ShieldAlert className="h-4 w-4" />}>
-            <BarList data={riskCounts} />
-          </Panel>
-          <Panel title="Scam categories" icon={<BarChart3 className="h-4 w-4" />}>
-            <BarList data={categoryCounts} />
-          </Panel>
-          <Panel title="Common suspicious signals" icon={<ShieldAlert className="h-4 w-4" />}>
-            <BarList data={signalCounts} />
-          </Panel>
-        </section>
-
-        <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
-          <div className="rounded-[8px] border border-slate-200 bg-white/90 p-5 shadow-soft">
-          <h2 className="text-lg font-bold text-ink">Recent checks</h2>
-          <div className="mt-4 grid gap-3">
-            {cases.slice(0, 8).map((item, index) => (
-              <div key={`${item.category}-${index}`} className="grid gap-2 rounded-[8px] border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[120px_1fr_120px] sm:items-center">
-                <span className="text-sm font-semibold text-azure">{item.city}</span>
-                <span className="text-sm text-ink">{item.category}</span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-center text-xs font-bold text-slate-700">{item.riskLevel}</span>
+        {isLoading && !data ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-azure"></div>
+          </div>
+        ) : data ? (
+          <>
+            {/* KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-5 rounded-[8px] border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-slate-500">Total Checks (7d)</h3>
+                  <BarChart3 className="h-4 w-4 text-slate-400" />
+                </div>
+                <p className="mt-2 text-3xl font-bold text-slate-900">{data.kpis.totalChecks7d}</p>
               </div>
-            ))}
-          </div>
-          </div>
-          <div className="rounded-[8px] border border-blue-100 bg-[#EAF4FE] p-5 shadow-soft">
-            <h2 className="text-lg font-bold text-ink">Operational value</h2>
-            <div className="mt-4 grid gap-3 text-sm leading-6 text-fluent-muted">
-              <p>Hotels can triage guest concerns faster with structured summaries.</p>
-              <p>TAT and local offices can see which scam categories damage trust.</p>
-              <p>Tourist police can receive cleaner evidence packs instead of fragmented screenshots.</p>
-              <p>Verified operators can be distinguished from risky or unknown actors.</p>
+              <div className="bg-white p-5 rounded-[8px] border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-slate-500">Emergency Cases (7d)</h3>
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                </div>
+                <p className="mt-2 text-3xl font-bold text-red-600">{data.kpis.emergencyCount7d}</p>
+              </div>
+              <div className="bg-white p-5 rounded-[8px] border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-slate-500">Top Scam Category</h3>
+                  <ShieldAlert className="h-4 w-4 text-slate-400" />
+                </div>
+                <p className="mt-2 text-xl font-bold text-slate-900 truncate" title={data.kpis.topCategory}>
+                  {data.kpis.topCategory.replace(/_/g, ' ')}
+                </p>
+              </div>
+              <div className="bg-white p-5 rounded-[8px] border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-slate-500">Most Affected City</h3>
+                  <MapPin className="h-4 w-4 text-slate-400" />
+                </div>
+                <p className="mt-2 text-xl font-bold text-slate-900">{data.kpis.mostAffectedCity}</p>
+              </div>
             </div>
-          </div>
-        </section>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Heatmap */}
+              <div className="lg:col-span-1 bg-white p-5 rounded-[8px] border border-slate-200 shadow-sm flex flex-col items-center">
+                <h2 className="text-lg font-bold text-ink w-full mb-4">Risk Heatmap</h2>
+                <div className="w-full max-w-sm">
+                  <ThailandHeatmap cityStats={data.cityStats} />
+                </div>
+              </div>
+
+              {/* Recent Reports */}
+              <div className="lg:col-span-2 bg-white p-5 rounded-[8px] border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-ink">Recent Live Reports</h2>
+                  <span className="text-xs text-slate-500">Showing last 10</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Time</th>
+                        <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">City</th>
+                        <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Category</th>
+                        <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Risk Level</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                      {data.recentReports.map((report) => (
+                        <tr key={report.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">
+                            {formatTimeAgo(report.timestamp)}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">
+                            {report.city}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                            {report.category.replace(/_/g, ' ')}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getRiskBadgeColor(report.risk_level)}`}>
+                              {report.risk_level}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
     </main>
   );
-}
-
-function Metric({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-[8px] border border-fluent-border bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-500">{title}</p>
-      <p className="mt-2 text-4xl font-bold text-ink">{value}</p>
-    </div>
-  );
-}
-
-function Panel({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-[8px] border border-fluent-border bg-white p-5 shadow-sm">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        {icon}
-        {title}
-      </h2>
-      <div className="mt-4">{children}</div>
-    </div>
-  );
-}
-
-function BarList({ data }: { data: Record<string, number> }) {
-  const max = Math.max(...Object.values(data), 1);
-  return (
-    <div className="grid gap-3">
-      {Object.entries(data).map(([key, value]) => (
-        <div key={key}>
-          <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-            <span className="font-semibold text-slate-700">{key}</span>
-            <span className="text-slate-500">{value}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-azure" style={{ width: `${(value / max) * 100}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function countBy(items: DashboardCase[], key: "city" | "category" | "riskLevel") {
-  return items.reduce<Record<string, number>>((acc, item) => {
-    acc[item[key]] = (acc[item[key]] || 0) + 1;
-    return acc;
-  }, {});
-}
-
-function countSignals(items: DashboardCase[]) {
-  return items.flatMap((item) => item.signals).reduce<Record<string, number>>((acc, signal) => {
-    acc[signal] = (acc[signal] || 0) + 1;
-    return acc;
-  }, {});
 }

@@ -1,5 +1,6 @@
 import riskPatterns from "@/data/risk_patterns.json";
 import contacts from "@/data/emergency_contacts.json";
+import { SYSTEM_PROMPT, languageInstruction } from "@/lib/system-prompt";
 import type { RiskCheckRequest, RiskCheckResult, RiskLevel, RiskPattern } from "@/lib/types";
 
 const typedPatterns = riskPatterns as RiskPattern[];
@@ -73,32 +74,23 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
 export function buildPrompt(request: RiskCheckRequest, baseline: RiskCheckResult) {
   return [
     {
-      role: "system",
-      content:
-        "You are TrustPass Thailand, a tourist scam and fraud risk classifier. You help tourists in Thailand evaluate suspicious situations before they pay, travel, rent, or follow instructions. Do not accuse a business of crime. Explain risk signals and safe verification steps. Return only valid JSON matching the requested schema."
+      role: "system" as const,
+      content: `${SYSTEM_PROMPT}\n\n${languageInstruction(request.language)}`
     },
     {
-      role: "user",
+      role: "user" as const,
       content: JSON.stringify(
         {
-          task: "Classify tourist scam/fraud risk in Thailand.",
-          schema: {
-            risk_level: "Low | Caution | High | Emergency",
-            category: "short category",
-            suspicious_signals: ["short signals"],
-            why_it_matters: "plain explanation",
-            safe_next_steps: ["actionable steps"],
-            thai_phrase: "one useful Thai phrase",
-            evidence_to_save: ["evidence items"],
-            contact_recommendation: "who to contact",
-            incident_report_summary: {
-              english: "short report summary",
-              thai: "short Thai report summary"
-            }
+          task: "Classify tourist scam/fraud risk in Thailand. Return JSON matching the schema in the system prompt.",
+          tourist_input: {
+            message: request.message,
+            extracted_evidence_text: request.extractedText ?? null,
+            city: request.city,
+            output_language: request.language,
+            attachments: request.attachmentsMetadata ?? []
           },
-          user_input: request,
           local_rule_baseline: baseline,
-          contact_context: contacts
+          emergency_contacts: contacts
         },
         null,
         2

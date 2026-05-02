@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
 import { buildPrompt, classifyWithLocalRules, normalizeRiskResult } from "@/lib/risk-engine";
 import type { RiskCheckRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
+
+const REQUEST_TIMEOUT_MS = 5000;
 
 export async function POST(request: Request) {
   const body = (await request.json()) as Partial<RiskCheckRequest>;
@@ -16,9 +19,7 @@ export async function POST(request: Request) {
 
   if (!payload.message && !payload.extractedText) {
     return NextResponse.json(
-      {
-        error: "Please describe the situation or attach evidence before checking risk."
-      },
+      { error: "Please describe the situation or attach evidence before checking risk." },
       { status: 400 }
     );
   }
@@ -27,40 +28,36 @@ export async function POST(request: Request) {
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
   const apiKey = process.env.AZURE_OPENAI_API_KEY;
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2024-10-21";
 
   if (!endpoint || !apiKey || !deployment) {
     return NextResponse.json(fallback);
   }
 
+  const baseURL = endpoint.replace(/\/$/, "");
+
   try {
-    const messages = buildPrompt(payload, fallback);
-    const response = await fetch(
-      `${endpoint.replace(/\/$/, "")}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "api-key": apiKey
-        },
-        body: JSON.stringify({
-          messages,
-          temperature: 0.2,
-          max_tokens: 900,
-          response_format: { type: "json_object" }
-        })
-      }
-    );
+    const client = new OpenAI({
+      baseURL,
+      apiKey,
+      timeout: REQUEST_TIMEOUT_MS
+    });
 
-    if (!response.ok) {
-      return NextResponse.json(fallback);
-    }
+    const completion = await client.chat.completions.create({
+      model: deployment,
+      messages: buildPrompt(payload, fallback),
+      temperature: 0.2,
+      max_tokens: 900,
+      response_format: { type: "json_object" }
+    });
 
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
+    const content = completion.choices[0]?.message?.content;
     const parsed = content ? JSON.parse(content) : null;
     return NextResponse.json(normalizeRiskResult(parsed, fallback, "azure-openai"));
-  } catch {
+  } catch (error) {
+    console.error(
+      `[risk-check] Azure call failed (baseURL=${baseURL}, deployment=${deployment}), using fallback:`,
+      error
+    );
     return NextResponse.json(fallback);
   }
 }

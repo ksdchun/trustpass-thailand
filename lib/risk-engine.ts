@@ -1,6 +1,7 @@
 import riskPatterns from "@/data/risk_patterns.json";
 import contacts from "@/data/emergency_contacts.json";
-import type { GroundingSignal, RiskCheckRequest, RiskCheckResult, RiskLevel, RiskPattern } from "@/lib/types";
+import { SYSTEM_PROMPT, languageInstruction } from "@/lib/system-prompt";
+import type { RiskCheckRequest, RiskCheckResult, RiskLevel, RiskPattern } from "@/lib/types";
 
 const typedPatterns = riskPatterns as RiskPattern[];
 
@@ -73,34 +74,23 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
 export function buildPrompt(request: RiskCheckRequest, baseline: RiskCheckResult, grounding: GroundingSignal[]) {
   return [
     {
-      role: "system",
-      content:
-        "You are TrustPass Thailand, a tourist scam and fraud risk classifier. You help tourists in Thailand evaluate suspicious situations before they pay, travel, rent, or follow instructions. Do not accuse a business of crime. Explain risk signals and safe verification steps. Treat grounding_context as tool output from deterministic app tools. Use it before making assumptions. Do not classify a situation as Caution or High solely because it mentions a taxi, fare, tourist place, holiday, or border city. Cheap, normal, or below-baseline prices are Low risk unless there are concrete suspicious signals such as meter refusal, hidden fees, forced prepayment, route diversion, intimidation, passport retention, secrecy, or unsafe pickup instructions. If grounding_context says a quoted fare or location is plausible, follow that grounding. Return only valid JSON matching the requested schema."
+      role: "system" as const,
+      content: `${SYSTEM_PROMPT}\n\n${languageInstruction(request.language)}`
     },
     {
-      role: "user",
+      role: "user" as const,
       content: JSON.stringify(
         {
-          task: "Classify tourist scam/fraud risk in Thailand.",
-          schema: {
-            risk_level: "Low | Caution | High | Emergency",
-            category: "short category",
-            suspicious_signals: ["short signals"],
-            why_it_matters: "plain explanation",
-            safe_next_steps: ["actionable steps"],
-            thai_phrase: "one useful Thai phrase",
-            evidence_to_save: ["evidence items"],
-            contact_recommendation: "who to contact",
-            incident_report_summary: {
-              english: "short report summary",
-              thai: "short Thai report summary"
-            },
-            grounding: "copy the grounding_context items that materially affected the answer"
+          task: "Classify tourist scam/fraud risk in Thailand. Return JSON matching the schema in the system prompt.",
+          tourist_input: {
+            message: request.message,
+            extracted_evidence_text: request.extractedText ?? null,
+            city: request.city,
+            output_language: request.language,
+            attachments: request.attachmentsMetadata ?? []
           },
-          user_input: request,
           local_rule_baseline: baseline,
-          grounding_context: grounding,
-          contact_context: contacts
+          emergency_contacts: contacts
         },
         null,
         2

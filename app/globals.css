@@ -3,33 +3,33 @@
 @tailwind utilities;
 
 :root {
-  --color-ink: #323130;
-  --color-muted: #605e5c;
-  --color-canvas: #faf9f8;
-  --color-surface: #ffffff;
-  --color-panel: #f3f2f1;
-  --color-border: #edebe9;
-  --color-azure: #0078d4;
-  --color-azure-dark: #106ebe;
-  --color-trust: #107c10;
-  --color-signal: #d13438;
-  --color-saffron: #ffb900;
+  --color-ink: #242424;
+  --color-muted: #616161;
+  --color-canvas: #FAFAFA;
+  --color-surface: #FFFFFF;
+  --color-panel: #F3F2F1;
+  --color-border: #E1E1E1;
+  --color-azure: #0078D4;
+  --color-azure-dark: #106EBE;
+  --color-trust: #107C10;
+  --color-signal: #A4262C;
+  --color-saffron: #FFB900;
   color-scheme: light;
   background: var(--color-canvas);
 }
 
 html.dark {
-  --color-ink: #f3f2f1;
-  --color-muted: #c8c6c4;
-  --color-canvas: #11100f;
-  --color-surface: #201f1e;
-  --color-panel: #2b2a29;
-  --color-border: #3b3a39;
-  --color-azure: #4aa7f0;
-  --color-azure-dark: #70bdf7;
-  --color-trust: #6ccb5f;
-  --color-signal: #f1707b;
-  --color-saffron: #ffd335;
+  --color-ink: #F3F2F1;
+  --color-muted: #C8C6C4;
+  --color-canvas: #1B1A19;
+  --color-surface: #252423;
+  --color-panel: #2B2A29;
+  --color-border: #3B3A39;
+  --color-azure: #4AA7F0;
+  --color-azure-dark: #70BDF7;
+  --color-trust: #6CCB5F;
+  --color-signal: #F1707B;
+  --color-saffron: #FFD335;
   color-scheme: dark;
 }
 
@@ -46,7 +46,9 @@ body {
   min-height: 100vh;
   color: var(--color-ink);
   background: var(--color-canvas);
-  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html.dark .bg-white,
@@ -96,9 +98,20 @@ textarea {
   font: inherit;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--color-azure);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .chat-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #94a3b8 transparent;
+  scrollbar-color: #BDBDBD transparent;
 }
 
 .chat-scroll::-webkit-scrollbar {
@@ -106,6 +119,6 @@ textarea {
 }
 
 .chat-scroll::-webkit-scrollbar-thumb {
-  background: #94a3b8;
+  background: #BDBDBD;
   border-radius: 999px;
 }

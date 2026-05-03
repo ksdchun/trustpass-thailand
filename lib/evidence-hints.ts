@@ -36,7 +36,7 @@ export function extractEvidenceHints(text: string): EvidenceHints {
   const lower = normalized.toLowerCase();
 
   return {
-    prices: unique(matches(normalized, /(?:฿\s*)?\d{2,6}(?:,\d{3})?\s*(?:baht|thb|บาท|฿)?/gi).filter(looksLikePrice)).slice(0, 12),
+    prices: unique(matches(normalized, /(?:฿\s*)?(?:\d{1,3}(?:,\d{3})+|\d{2,6})\s*(?:baht|thb|บาท|฿)?/gi).filter(looksLikePrice)).slice(0, 12),
     phone_numbers: unique(matches(normalized, /(?:\+66|0)\s?\d{1,2}[\s-]?\d{3,4}[\s-]?\d{3,4}/g)).slice(0, 8),
     account_names: unique(matches(normalized, /(?:account name|บัญชี|ชื่อบัญชี)\s*[:\-]?\s*([A-Za-zก-๙ .]{3,60})/gi).map(cleanLabel)).slice(0, 6),
     business_names: unique(matches(normalized, /(?:company|tour|restaurant|ร้าน|บริษัท)\s*[:\-]?\s*([A-Za-zก-๙0-9 .&'-]{3,60})/gi).map(cleanLabel)).slice(0, 8),
@@ -59,7 +59,5 @@ function cleanLabel(value: string) {
 }
 
 function looksLikePrice(value: string) {
-  const hasCurrency = /baht|thb|บาท|฿/i.test(value);
-  const number = Number(value.replace(/[^\d]/g, ""));
-  return hasCurrency || number >= 40;
+  return /baht|thb|บาท|฿/i.test(value);
 }

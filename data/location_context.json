@@ -15,6 +15,13 @@
       "context": "Central shopping district around Siam Paragon, Siam Center, and BTS Siam. Taxi trips within central Bangkok should normally use the meter."
     },
     {
+      "id": "bangkok_chatuchak",
+      "city": "Bangkok",
+      "name": "Chatuchak Market",
+      "bounds": { "minLat": 13.795, "maxLat": 13.805, "minLng": 100.546, "maxLng": 100.557 },
+      "context": "Large weekend market and local shopping area. Food prices are usually closer to street/local stall pricing unless a specific premium venue is named."
+    },
+    {
       "id": "bangkok_wat_pho",
       "city": "Bangkok",
       "name": "Grand Palace / Wat Pho",
@@ -52,9 +59,36 @@
       "lat": 13.7526,
       "lng": 100.5048,
       "radius_m": 160,
+      "food_tier_id": "premium_famous_venue",
       "context": "Famous Michelin-recognized Bangkok street food restaurant known for premium crab dishes and unusually high prices compared with typical street food.",
       "menu_price_band_baht": [500, 2500],
       "verification_advice": "If the user is truly at Jay Fai or the menu clearly belongs to Jay Fai, high menu prices can be normal. The safer step is to verify the printed menu, bill, and staff confirmation rather than treating price alone as fraud."
+    },
+    {
+      "id": "siam_paragon",
+      "city": "Bangkok",
+      "name": "Siam Paragon / Department-store restaurant zone",
+      "keywords": ["siam paragon", "paragon", "gourmet eats", "department store restaurant"],
+      "lat": 13.7466,
+      "lng": 100.5347,
+      "radius_m": 260,
+      "food_tier_id": "department_store_restaurant",
+      "context": "Premium Bangkok shopping mall and department-store restaurant zone. Sit-down restaurants and higher-end mall food venues can be much more expensive than street stalls.",
+      "menu_price_band_baht": [150, 700],
+      "verification_advice": "If the user is inside a department-store restaurant or food hall, mid-to-high hundreds of baht can be normal for seafood or imported dishes. Verify the displayed menu and receipt."
+    },
+    {
+      "id": "chatuchak_market",
+      "city": "Bangkok",
+      "name": "Chatuchak Market",
+      "keywords": ["chatuchak", "jj market", "จตุจักร"],
+      "lat": 13.7999,
+      "lng": 100.5502,
+      "radius_m": 500,
+      "food_tier_id": "street_food_local_stall",
+      "context": "Large Bangkok market where casual stalls and local food vendors are common. Prices are usually closer to street/local stall ranges unless the user is at a clearly premium shop.",
+      "menu_price_band_baht": [40, 180],
+      "verification_advice": "If a market stall price is several hundred baht for a normal dish, ask what dish or venue it is and confirm the displayed price before paying."
     }
   ],
   "events": [

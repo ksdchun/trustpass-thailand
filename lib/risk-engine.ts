@@ -1,5 +1,6 @@
 import riskPatterns from "@/data/risk_patterns.json";
 import contacts from "@/data/emergency_contacts.json";
+import { SYSTEM_PROMPT, languageInstruction } from "@/lib/system-prompt";
 import type { GroundingSignal, RiskCheckRequest, RiskCheckResult, RiskLevel, RiskPattern } from "@/lib/types";
 
 const typedPatterns = riskPatterns as RiskPattern[];
@@ -20,10 +21,13 @@ const defaultEvidence = [
 const defaultThaiPhrase = "ขอเวลาตรวจสอบข้อมูลก่อนดำเนินการต่อครับ/ค่ะ";
 
 export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResult {
-  const combined = `${request.message} ${request.extractedText ?? ""} ${request.evidenceText ?? ""} ${request.city}`.toLowerCase();
+  const clarificationText = Object.values(request.clarificationAnswers || {}).join(" ");
+  const combined = `${request.message} ${request.extractedText ?? ""} ${request.evidenceText ?? ""} ${clarificationText} ${request.city}`.toLowerCase();
   const matches = typedPatterns
     .map((pattern) => {
-      const hits = pattern.signals.filter((signal) => combined.includes(signal.toLowerCase()));
+      const hits = patternApplies(pattern.id, combined)
+        ? pattern.signals.filter((signal) => combined.includes(signal.toLowerCase()))
+        : [];
       return { pattern, hits };
     })
     .filter((match) => match.hits.length > 0)
@@ -46,14 +50,14 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
       ],
       thai_phrase: defaultThaiPhrase,
       evidence_to_save: defaultEvidence,
-      contact_recommendation: "Ask your hotel front desk to help verify the service. Contact Tourist Police 1155 if pressured or threatened.",
+      contact_recommendation: "No escalation is recommended from the current information. Confirm basic details and ask hotel staff only if something feels unclear or changes.",
       incident_report_summary: buildReport("No strong scam pattern detected", "Low", request.city, []),
       source: "local-demo"
     };
   }
 
   const strongest = matches[0].pattern;
-  const allSignals = Array.from(new Set(matches.flatMap((match) => match.hits))).slice(0, 8);
+  const allSignals = Array.from(new Set(matches.flatMap((match) => displaySignalsForMatch(match.pattern.id, match.hits, combined)))).slice(0, 8);
   const actionSet = Array.from(new Set(matches.flatMap((match) => match.pattern.actions))).slice(0, 5);
 
   return {
@@ -73,34 +77,30 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
 export function buildPrompt(request: RiskCheckRequest, baseline: RiskCheckResult, grounding: GroundingSignal[]) {
   return [
     {
-      role: "system",
-      content:
-        "You are TrustPass Thailand, a tourist scam and fraud risk classifier. You help tourists in Thailand evaluate suspicious situations before they pay, travel, rent, or follow instructions. Do not accuse a business of crime. Explain risk signals and safe verification steps. Treat grounding_context as tool output from deterministic app tools. Use it before making assumptions. Do not classify a situation as Caution or High solely because it mentions a taxi, fare, tourist place, holiday, or border city. Cheap, normal, or below-baseline prices are Low risk unless there are concrete suspicious signals such as meter refusal, hidden fees, forced prepayment, route diversion, intimidation, passport retention, secrecy, or unsafe pickup instructions. If grounding_context says a quoted fare or location is plausible, follow that grounding. Return only valid JSON matching the requested schema."
+      role: "system" as const,
+      content: `${SYSTEM_PROMPT}\n\n${languageInstruction(request.language)}`
     },
     {
-      role: "user",
+      role: "user" as const,
       content: JSON.stringify(
         {
-          task: "Classify tourist scam/fraud risk in Thailand.",
-          schema: {
-            risk_level: "Low | Caution | High | Emergency",
-            category: "short category",
-            suspicious_signals: ["short signals"],
-            why_it_matters: "plain explanation",
-            safe_next_steps: ["actionable steps"],
-            thai_phrase: "one useful Thai phrase",
-            evidence_to_save: ["evidence items"],
-            contact_recommendation: "who to contact",
-            incident_report_summary: {
-              english: "short report summary",
-              thai: "short Thai report summary"
-            },
-            grounding: "copy the grounding_context items that materially affected the answer"
+          task: "Classify tourist scam/fraud risk in Thailand. Return JSON matching the schema in the system prompt.",
+          tourist_input: {
+            message: request.message,
+            extracted_evidence_text: request.extractedText ?? null,
+            evidence_text: request.evidenceText ?? null,
+            ignored_evidence_text: request.ignoredEvidenceText ?? null,
+            evidence_relevance: request.evidenceRelevance ?? null,
+            city: request.city,
+            incident_date_iso: request.incidentDateIso ?? null,
+            user_location: request.userLocation ?? null,
+            clarification_answers: request.clarificationAnswers ?? null,
+            output_language: request.language,
+            attachments: request.attachmentsMetadata ?? []
           },
-          user_input: request,
           local_rule_baseline: baseline,
           grounding_context: grounding,
-          contact_context: contacts
+          emergency_contacts: contacts
         },
         null,
         2
@@ -129,9 +129,84 @@ export function normalizeRiskResult(input: unknown, fallback: RiskCheckResult, s
       english: value.incident_report_summary?.english || fallback.incident_report_summary.english,
       thai: value.incident_report_summary?.thai || fallback.incident_report_summary.thai
     },
-    grounding: groundingOr(value.grounding, fallback.grounding),
+    grounding: fallback.grounding || groundingOr(value.grounding, fallback.grounding),
     source
   };
+}
+
+function patternApplies(patternId: string, text: string) {
+  if (patternId === "taxi_meter_refusal") {
+    return hasTaxiOrRideContext(text);
+  }
+  return true;
+}
+
+function hasTaxiOrRideContext(text: string) {
+  return /\btaxi\b|cab|meter|fare|grab|bolt|tuk-?tuk|driver.*(?:take|ride|drive)|(?:ride|drive).*from/i.test(text);
+}
+
+function displaySignalsForMatch(patternId: string, hits: string[], text: string) {
+  const hasHit = (...phrases: string[]) => phrases.some((phrase) => hits.includes(phrase) || text.includes(phrase));
+
+  if (patternId === "taxi_meter_refusal") {
+    return [
+      hasHit("meter broken", "meter is broken", "meter not working", "no meter") ? "Meter refusal or meter unavailable" : null,
+      hasHit("fixed fare", "800 baht", "overcharge") ? "Fixed fare quote needs route/fare verification" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "personal_transfer_tour") {
+    return [
+      hasHit("full payment", "deposit now") ? "Full advance payment requested" : null,
+      hasHit("personal account", "bank transfer") ? "Payment account appears personal" : null,
+      hasHit("no license") ? "Missing operator or TAT license details" : null,
+      hasHit("line only") ? "Informal LINE-only sales channel" : null,
+      hasHit("limited time") ? "Time pressure or limited-time payment push" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "qr_payment_mismatch") {
+    return [
+      hasHit("different name", "personal name", "personal account") ? "Payment account appears personal or mismatched" : null,
+      hasHit("qr", "qr payment", "scan to pay") ? "QR payment requested before identity is verified" : null,
+      hasHit("account name") ? "Account name needs business verification" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "passport_retention") {
+    return [
+      hasHit("keep passport", "hold passport", "original passport", "passport deposit", "leave your passport") ? "Original passport requested as deposit" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "tuktuk_detour_shop") {
+    return [
+      hasHit("temple is closed") ? "Attraction closure claim redirects the route" : null,
+      hasHit("gem shop", "tailor shop", "government shop", "free stop", "detour") ? "Shop detour or commission stop suggested" : null,
+      hasHit("special price") ? "Special-price pressure used to change plan" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "rental_damage_cash_pressure") {
+    return [
+      hasHit("20,000 baht", "pay cash now") ? "Large cash damage demand without neutral inspection" : null,
+      hasHit("no receipt") ? "No receipt or written damage estimate offered" : null,
+      hasHit("no police") ? "Pressure to avoid police, insurer, or neutral process" : null,
+      hasHit("scratch", "damage", "jet ski") ? "Rental damage claim under pressure" : null,
+      hasHit("keep passport") ? "Passport leverage present in rental dispute" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "fake_job_casting_lure") {
+    return [
+      hasHit("casting", "modeling", "modelling", "paid photoshoot", "job offer") ? "Job or casting offer from informal channel" : null,
+      hasHit("airport pickup", "free transport", "driver will pick you up") ? "Controlled pickup or free transport offered" : null,
+      hasHit("mae sot", "border", "myanmar") ? "Travel toward Mae Sot, Myanmar, or border area" : null,
+      hasHit("do not tell", "keep secret", "change hotel") ? "Secrecy or isolation instruction" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  return hits;
 }
 
 function arrayOr(value: unknown, fallback: string[]) {
@@ -167,15 +242,15 @@ function evidenceFor(category: string) {
 
 function contactFor(level: RiskLevel) {
   if (level === "Emergency") {
-    return "Stop immediately. Contact hotel staff, Tourist Police 1155, or your embassy/consulate from a safe public place.";
+    return "Stop immediately and move to a safe public place. Contact Tourist Police 1155, hotel security, emergency medical help, or your embassy/consulate as relevant.";
   }
   if (level === "High") {
-    return "Do not proceed until verified. Ask hotel staff or Tourist Police 1155 for help if pressured.";
+    return "Do not proceed until verified. Ask hotel staff, the official platform, or the relevant company for help first; contact Tourist Police 1155 if pressured, threatened, blocked, or already defrauded.";
   }
   if (level === "Caution") {
-    return "Verify first through hotel staff or a trusted platform. Contact Tourist Police 1155 if the situation escalates.";
+    return "Verify calmly first through staff, hotel front desk, or a trusted platform. Tourist Police 1155 is only needed if pressure, threats, refusal to let you leave, or a major dispute appears.";
   }
-  return "Proceed carefully and save receipts. Ask hotel staff if you want a second opinion.";
+  return "No escalation recommended. Proceed normally, confirm the details, and keep receipts only if useful.";
 }
 
 function buildReport(category: string, level: RiskLevel, city: string, signals: string[]) {

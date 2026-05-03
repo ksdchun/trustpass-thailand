@@ -47,15 +47,21 @@ export async function POST(request: Request) {
   ];
 
   try {
+    const normalizedEndpoint = endpoint.replace(/\/$/, "");
+    const openAICompatibleBaseUrl = getOpenAICompatibleBaseUrl(normalizedEndpoint);
     const response = await fetch(
-      `${endpoint.replace(/\/$/, "")}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`,
+      openAICompatibleBaseUrl
+        ? `${openAICompatibleBaseUrl}/chat/completions`
+        : `${normalizedEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`,
       {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "api-key": apiKey
+          "api-key": apiKey,
+          Authorization: `Bearer ${apiKey}`
         },
         body: JSON.stringify({
+          model: deployment,
           messages,
           temperature: 0.7,
           max_tokens: 700
@@ -90,4 +96,12 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function getOpenAICompatibleBaseUrl(endpoint: string) {
+  if (endpoint.endsWith("/openai/v1")) return endpoint;
+  if (endpoint.includes(".services.ai.azure.com") && endpoint.includes("/api/projects/")) {
+    return `${endpoint}/openai/v1`;
+  }
+  return null;
 }

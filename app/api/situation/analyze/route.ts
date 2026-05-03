@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { analyzeSituation } from "@/lib/situation-service";
+import { isIntelligenceEligible, recordCheck } from "@/lib/intelligence-store";
+import { analyzeSituation, toLegacyRiskResult } from "@/lib/situation-service";
 import type { SituationAnalyzeRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
     language: body.language || "English",
     incidentDateIso: body.incidentDateIso || new Date().toISOString(),
     evidenceText: body.evidenceText?.trim(),
+    evidenceRelevance: body.evidenceRelevance,
     userLocation: body.userLocation,
     attachmentsMetadata: body.attachmentsMetadata || [],
     clarificationAnswers: body.clarificationAnswers
@@ -26,5 +28,18 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json(await analyzeSituation(payload, { allowClarification: true }));
+  const response = await analyzeSituation(payload, { allowClarification: true });
+
+  if (response.status === "completed") {
+    const result = toLegacyRiskResult(response);
+    if (!isIntelligenceEligible(result)) return NextResponse.json(response);
+
+    try {
+      recordCheck(result, payload.city);
+    } catch (error) {
+      console.error("Failed to record completed situation analysis in intelligence store", error);
+    }
+  }
+
+  return NextResponse.json(response);
 }

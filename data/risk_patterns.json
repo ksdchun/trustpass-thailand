@@ -3,7 +3,7 @@
     "id": "taxi_meter_refusal",
     "category": "Taxi overcharging",
     "riskLevel": "Caution",
-    "signals": ["meter broken", "meter not working", "no meter", "fixed fare", "800 baht", "overcharge"],
+    "signals": ["meter broken", "meter is broken", "meter not working", "no meter", "fixed fare", "800 baht", "overcharge"],
     "why": "Refusing the meter or demanding an unusual fixed price is a common tourist overcharging signal.",
     "actions": ["Move to a public safe area if uncomfortable.", "Ask for the meter before starting the trip.", "Save the taxi plate, pickup place, time, and quoted fare."],
     "thaiPhrase": "กรุณาเปิดมิเตอร์ครับ/ค่ะ"

@@ -2,6 +2,25 @@ export type RiskLevel = "Low" | "Caution" | "High" | "Emergency";
 
 export type Language = "English" | "Thai" | "Chinese";
 
+export type EvidenceTopic =
+  | "transport"
+  | "food_menu"
+  | "tour_payment"
+  | "qr_payment"
+  | "rental_document"
+  | "damage_claim"
+  | "job_lure"
+  | "unknown";
+
+export type EvidenceRelevance = "relevant" | "weak" | "unrelated";
+
+export type EvidenceRelevanceResult = {
+  topic: EvidenceTopic;
+  relevance: EvidenceRelevance;
+  reason: string;
+  usable_as_case_evidence: boolean;
+};
+
 export type RiskPattern = {
   id: string;
   category: string;
@@ -20,7 +39,19 @@ export type UserLocation = {
 };
 
 export type GroundingSignal = {
-  tool: "location" | "route_distance" | "fare_reference" | "event_context" | "venue_reference" | "web_grounding";
+  tool:
+    | "location"
+    | "route_distance"
+    | "fare_reference"
+    | "food_price_reference"
+    | "operator_payment_reference"
+    | "qr_payment_reference"
+    | "rental_document_reference"
+    | "damage_claim_reference"
+    | "job_lure_reference"
+    | "event_context"
+    | "venue_reference"
+    | "web_grounding";
   title: string;
   summary: string;
   confidence: "low" | "medium" | "high";
@@ -28,6 +59,7 @@ export type GroundingSignal = {
     title: string;
     url: string;
   }>;
+  metadata?: Record<string, unknown>;
 };
 
 export type RiskCheckRequest = {
@@ -36,6 +68,8 @@ export type RiskCheckRequest = {
   language: Language;
   extractedText?: string;
   evidenceText?: string;
+  evidenceRelevance?: EvidenceRelevanceResult;
+  ignoredEvidenceText?: string;
   incidentDateIso?: string;
   userLocation?: UserLocation;
   clarificationAnswers?: Record<string, string>;
@@ -87,6 +121,10 @@ export type EvidenceExtractResult = {
     source: "azure-document-intelligence" | "fallback";
     pages: number;
     hints: EvidenceHints;
+    relevance: EvidenceRelevance;
+    relevance_reason: string;
+    evidence_topic: EvidenceTopic;
+    usable_as_case_evidence: boolean;
     recoverable: boolean;
     note?: string;
   };
@@ -99,6 +137,7 @@ export type SituationAnalyzeRequest = {
   incidentDateIso: string;
   userLocation?: UserLocation;
   evidenceText?: string;
+  evidenceRelevance?: EvidenceRelevanceResult;
   attachmentsMetadata?: RiskCheckRequest["attachmentsMetadata"];
   clarificationAnswers?: Record<string, string>;
 };
@@ -106,9 +145,28 @@ export type SituationAnalyzeRequest = {
 export type SituationAnalyzeResponse =
   | {
       status: "needs_clarification";
+      clarification_key?: string;
       question: string;
       reason: string;
       suggested_answers: string[];
+      grounding: GroundingSignal[];
+    }
+  | {
+      status: "out_of_scope";
+      message: string;
+      suggested_next_inputs: string[];
+      evidence_relevance?: EvidenceRelevanceResult;
+      grounding: GroundingSignal[];
+    }
+  | {
+      status: "evidence_mismatch";
+      clarification_key: "evidence_choice";
+      question: string;
+      reason: string;
+      suggested_answers: string[];
+      message_topic: EvidenceTopic;
+      evidence_topic: EvidenceTopic;
+      evidence_relevance: EvidenceRelevanceResult;
       grounding: GroundingSignal[];
     }
   | {

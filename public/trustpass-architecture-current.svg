@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 788" role="img" aria-labelledby="title desc">
   <title id="title">TrustPass Thailand current Azure architecture</title>
-  <desc id="desc">Architecture diagram showing Next.js app routes, Azure Document Intelligence OCR, deterministic TrustPass grounding, optional Azure Maps, Azure OpenAI reasoning, and dashboard recording for Caution or higher cases.</desc>
+  <desc id="desc">Architecture diagram showing Next.js app routes, Azure Document Intelligence OCR, deterministic TrustPass grounding, Azure OpenAI reasoning, and dashboard recording for Caution or higher cases.</desc>
   <rect width="1400" height="788" fill="#F8FBFF"/>
   <text x="700" y="60" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="700" fill="#005A9E">Current Azure AI Architecture</text>
   <text x="700" y="98" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="#323130">TrustPass Thailand uses Azure AI for OCR and final reasoning, with deterministic grounding first.</text>
@@ -26,7 +26,7 @@
       <text x="150" y="189" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF">Frontend</text>
       <rect x="72" y="245" width="156" height="64" rx="8" fill="#EAF4FE" stroke="#A9D3F5"/>
       <text x="150" y="273" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">/check</text>
-      <text x="150" y="295" text-anchor="middle" font-size="13" fill="#605E5C">chat + evidence UI</text>
+      <text x="150" y="295" text-anchor="middle" font-size="13" fill="#605E5C">risk check + evidence UI</text>
       <rect x="72" y="337" width="156" height="64" rx="8" fill="#FFFFFF" stroke="#E2E8F0"/>
       <text x="150" y="365" text-anchor="middle" font-size="15" font-weight="700" fill="#323130">Evidence readout</text>
       <text x="150" y="387" text-anchor="middle" font-size="13" fill="#605E5C">OCR text + hints</text>
@@ -69,8 +69,8 @@
       <text x="855" y="426" text-anchor="middle" font-size="15" font-weight="700" fill="#334155">Clarification-first rules</text>
       <text x="855" y="447" text-anchor="middle" font-size="13" fill="#605E5C">venue, account, evidence mismatch</text>
       <rect x="735" y="490" width="240" height="62" rx="8" fill="#EAF4FE" stroke="#A9D3F5"/>
-      <text x="855" y="516" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">Optional Azure Maps</text>
-      <text x="855" y="537" text-anchor="middle" font-size="13" fill="#605E5C">route distance when key is configured</text>
+      <text x="855" y="516" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">Route + fare grounding</text>
+      <text x="855" y="537" text-anchor="middle" font-size="13" fill="#605E5C">curated distance and fare baselines</text>
     </g>
 
     <path d="M1018 282 H1090" stroke="#0078D4" stroke-width="5" marker-end="url(#arrow)" fill="none"/>

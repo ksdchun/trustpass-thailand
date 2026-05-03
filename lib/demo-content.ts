@@ -44,6 +44,7 @@ export const scenarios: Array<{
   whyItMatters: string;
   image?: string;
   imageAlt?: string;
+  imageClassName?: string;
 }> = [
   {
     id: "transport",
@@ -137,12 +138,12 @@ export const azureServices = [
     description: "Reads uploaded images and PDFs, then returns OCR text and evidence hints such as prices, accounts, places, and risky phrases."
   },
   {
-    title: "Optional Azure Maps",
-    description: "Can estimate route distance for taxi fare grounding when an Azure Maps key is configured; curated route data remains the fallback."
-  },
-  {
     title: "TrustPass Grounding Layer",
     description: "Local deterministic tools check scope, evidence mismatch, taxi fares, food tiers, payment fraud, rental risk, and job-lure patterns before Azure OpenAI."
+  },
+  {
+    title: "Regional Intelligence Dashboard",
+    description: "Aggregates eligible Caution, High, and Emergency cases into demo intelligence for hotels, tourism operators, TAT, and tourist police."
   }
 ];
 
@@ -159,7 +160,8 @@ export const visualStories = [
     label: "Tour / QR fraud",
     image: "/evidence/fake-tour-payment-demo.png",
     alt: "Synthetic mobile chat showing a fake tour payment request",
-    text: "Full prepayment, personal accounts, missing license details, and urgency language are grounded as stronger payment-fraud signals."
+    text: "Full prepayment, personal accounts, missing license details, and urgency language are grounded as stronger payment-fraud signals.",
+    imageClassName: "object-cover object-top"
   },
   {
     title: "QR account mismatch",

@@ -22,7 +22,7 @@ export default function HomePage() {
               AI Scam & Fraud Shield for Tourists
             </p>
             <p className="mt-5 max-w-2xl text-base leading-7 text-fluent-muted">
-              A universal chat interface where tourists can describe suspicious situations, attach evidence, and get Azure AI-powered risk signals, safe next steps, Thai phrases, and structured help reports before harm happens.
+              A guided risk-check workflow where tourists can describe suspicious situations, attach evidence, and get Azure AI-powered risk signals, safe next steps, Thai phrases, and structured help reports before harm happens.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/check" className="inline-flex items-center gap-2 rounded-[8px] bg-azure px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-fluent-blueDark">
@@ -90,7 +90,7 @@ export default function HomePage() {
           {visualStories.map((story) => (
             <article key={story.title} className="overflow-hidden rounded-[8px] border border-fluent-border bg-white shadow-sm">
               <div className="relative h-[460px] bg-fluent-canvas sm:h-[560px] md:h-[540px] xl:h-[620px]">
-                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="object-contain p-2" />
+                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className={story.imageClassName || "object-contain p-2"} />
               </div>
               <div className="p-5">
                 <p className="text-xs font-bold uppercase tracking-wide text-azure">{story.label}</p>
@@ -106,7 +106,7 @@ export default function HomePage() {
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm font-bold uppercase tracking-wide text-azure">Live Product</p>
-            <h2 className="mt-2 text-3xl font-bold text-ink">One chat interface for the major tourist-trust cases.</h2>
+            <h2 className="mt-2 text-3xl font-bold text-ink">One guided risk-check workspace for the major tourist-trust cases.</h2>
           </div>
           <Link href="/scenarios" className="inline-flex items-center gap-2 rounded-[8px] border border-fluent-border bg-white px-4 py-2 text-sm font-bold text-ink transition hover:border-azure hover:text-azure">
             See all scenarios
@@ -126,8 +126,8 @@ export default function HomePage() {
 
       <section className="border-y border-fluent-border bg-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:px-8">
-          <div className="rounded-[8px] border border-fluent-border bg-fluent-canvas p-3">
-            <Image src="/trustpass-risk-ladder.png" alt="TrustPass scam risk ladder" width={1400} height={788} className="h-auto w-full rounded-[8px] border border-fluent-border bg-white" />
+          <div className="self-start rounded-[8px] border border-fluent-border bg-white p-3 shadow-sm">
+            <Image src="/trustpass-risk-ladder.png" alt="TrustPass scam risk ladder" width={1400} height={788} className="block h-auto w-full rounded-[8px] border border-fluent-border bg-white" />
           </div>
           <div className="flex flex-col justify-center">
             <p className="text-sm font-bold uppercase tracking-wide text-azure">Why not just ChatGPT?</p>

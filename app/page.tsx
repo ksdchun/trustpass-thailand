@@ -86,11 +86,11 @@ export default function HomePage() {
             These synthetic evidence samples show the situations TrustPass is designed to read: menus, payment chats, and rental documents. OCR supports the story, but the typed situation remains the primary case unless the user chooses otherwise.
           </p>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {visualStories.map((story) => (
             <article key={story.title} className="overflow-hidden rounded-[8px] border border-fluent-border bg-white shadow-sm">
-              <div className="relative h-[420px] bg-fluent-canvas sm:h-[520px] md:h-[460px] lg:h-[560px]">
-                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 768px) 33vw, 100vw" className="object-contain p-2" />
+              <div className="relative h-[460px] bg-fluent-canvas sm:h-[560px] md:h-[540px] xl:h-[620px]">
+                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="object-contain p-2" />
               </div>
               <div className="p-5">
                 <p className="text-xs font-bold uppercase tracking-wide text-azure">{story.label}</p>

@@ -100,11 +100,57 @@ const loadingStages = [
   "Cross-referencing Thailand risk patterns…",
   "Generating action plan…"
 ];
+const riskCheckTourStorageKey = "trustpass-risk-check-tour-seen";
+
+const quickTourSteps = [
+  {
+    kicker: "Step 1 of 5",
+    title: "Set the travel context",
+    target: "Context bar",
+    body: "Choose the city, incident date, and location context before checking. Location helps TrustPass compare taxi fares, venue prices, and known tourist zones more accurately."
+  },
+  {
+    kicker: "Step 2 of 5",
+    title: "Describe what is happening",
+    target: "Describe Situation",
+    body: "Write the situation naturally, like you would text a hotel front desk. Include prices, names, places, instructions, and anything that feels suspicious."
+  },
+  {
+    kicker: "Step 3 of 5",
+    title: "Attach evidence if you have it",
+    target: "Add Evidence",
+    body: "Upload screenshots, QR payment screens, menus, receipts, contracts, rental forms, or chat logs. Azure Document Intelligence reads the evidence and TrustPass checks whether it matches your situation."
+  },
+  {
+    kicker: "Step 4 of 5",
+    title: "Read the risk result",
+    target: "Assessment result",
+    body: "After you press Check Risk, the result shows the risk level, suspicious signals, grounding details, Thai phrase, and safe next steps. If context is unclear, TrustPass asks a follow-up first."
+  },
+  {
+    kicker: "Step 5 of 5",
+    title: "Prepare a help report",
+    target: "Incident report",
+    body: "For caution or serious cases, save evidence in the checklist and generate a Thai report that can be handed to hotel staff, Tourist Police, embassy staff, or another local helper."
+  }
+];
 
 type PendingClarification = Extract<SituationAnalyzeResponse, { status: "needs_clarification" }>;
 type PendingMismatch = Extract<SituationAnalyzeResponse, { status: "evidence_mismatch" }>;
 type OutOfScopeSituation = Extract<SituationAnalyzeResponse, { status: "out_of_scope" }>;
 type CompletedSituation = Extract<SituationAnalyzeResponse, { status: "completed" }>;
+type ReportEvidenceItem = {
+  id: string;
+  label: string;
+  saved: boolean;
+  note: string;
+  files: Array<{
+    name: string;
+    type: string;
+    size: number;
+    previewDataUrl?: string;
+  }>;
+};
 
 type RiskTheme = {
   hex: string;
@@ -225,9 +271,21 @@ export function TrustPassChat() {
   const [resultKey, setResultKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isTourOpen, setIsTourOpen] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem(riskCheckTourStorageKey) === "true") return;
+    const id = window.setTimeout(() => {
+      setTourStepIndex(0);
+      setIsTourOpen(true);
+    }, 450);
+    return () => window.clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     if (!file) {
@@ -492,8 +550,35 @@ export function TrustPassChat() {
     );
   }
 
+  function openTour() {
+    setTourStepIndex(0);
+    setIsTourOpen(true);
+  }
+
+  function closeTour(markSeen = true) {
+    setIsTourOpen(false);
+    if (markSeen && typeof window !== "undefined") {
+      window.localStorage.setItem(riskCheckTourStorageKey, "true");
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#0078D4]">Risk Check</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#242424]">Check a tourist scam or safety situation</h1>
+        </div>
+        <button
+          type="button"
+          onClick={openTour}
+          className="inline-flex items-center gap-2 rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm font-semibold text-[#242424] shadow-card transition hover:border-[#0078D4] hover:bg-[#F5FAFD] hover:text-[#0078D4]"
+        >
+          <Sparkles className="h-4 w-4" />
+          Guide
+        </button>
+      </div>
+
       <ContextBar
         city={city}
         setCity={setCity}
@@ -526,7 +611,7 @@ export function TrustPassChat() {
           isChecking={isChecking}
         />
 
-        <div className="min-w-0">
+        <div className="min-w-0" data-tour-id="result-area">
           {errorMessage && (
             <div className="mb-4 flex items-start gap-3 rounded-lg border border-[#A4262C]/30 bg-[#FBE9EA] px-4 py-3 text-sm text-[#A4262C]">
               <AlertOctagon className="mt-0.5 h-4 w-4 shrink-0" />
@@ -557,6 +642,13 @@ export function TrustPassChat() {
           )}
         </div>
       </div>
+
+      <QuickTourModal
+        open={isTourOpen}
+        stepIndex={tourStepIndex}
+        setStepIndex={setTourStepIndex}
+        onClose={() => closeTour(true)}
+      />
     </div>
   );
 }
@@ -587,7 +679,7 @@ function ContextBar({
   onUseLocation
 }: ContextBarProps) {
   return (
-    <section className="mb-5 rounded-lg border border-[#E1E1E1] bg-white p-3 shadow-card">
+    <section data-tour-id="context-bar" className="mb-5 rounded-lg border border-[#E1E1E1] bg-white p-3 shadow-card">
       <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
         <div className="grid grid-cols-2 gap-2">
           <Field label="City" icon={<MapPin className="h-3.5 w-3.5" />}>
@@ -690,7 +782,7 @@ function FormPanel(props: FormPanelProps) {
       </div>
 
       <div className="min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
-        <Card title="1. Describe Situation">
+        <Card title="1. Describe Situation" dataTourId="describe-situation">
           <textarea
             ref={textareaRef}
             value={message}
@@ -701,7 +793,7 @@ function FormPanel(props: FormPanelProps) {
           />
         </Card>
 
-        <Card title="2. Add Evidence" optional>
+        <Card title="2. Add Evidence" optional dataTourId="add-evidence">
           <div
             ref={dropZoneRef}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -800,9 +892,9 @@ function FormPanel(props: FormPanelProps) {
   );
 }
 
-function Card({ title, optional, children }: { title: string; optional?: boolean; children: ReactNode }) {
+function Card({ title, optional, children, dataTourId }: { title: string; optional?: boolean; children: ReactNode; dataTourId?: string }) {
   return (
-    <section className="mb-4 rounded-lg border border-[#E1E1E1] bg-white p-4 shadow-card">
+    <section data-tour-id={dataTourId} className="mb-4 rounded-lg border border-[#E1E1E1] bg-white p-4 shadow-card">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[#242424]">{title}</h2>
         {optional && (
@@ -1102,6 +1194,7 @@ function ResultPanel({ result, city, onNewCheck }: { result: RiskCheckResult; ci
   const theme = riskTheme[result.risk_level];
   const score = riskScoreFor(result);
   const [showLargePhrase, setShowLargePhrase] = useState(false);
+  const [reportEvidence, setReportEvidence] = useState<ReportEvidenceItem[]>(() => createReportEvidence(result.evidence_to_save));
 
   return (
     <article className="animate-fadein overflow-hidden rounded-lg border border-[#E1E1E1] bg-white shadow-card">
@@ -1136,11 +1229,13 @@ function ResultPanel({ result, city, onNewCheck }: { result: RiskCheckResult; ci
 
         <ThaiPhraseCard phrase={result.thai_phrase} onShowLarge={() => setShowLargePhrase(true)} />
 
-        <EvidenceChecklist items={result.evidence_to_save} />
+        <EvidenceChecklist items={reportEvidence} onChange={setReportEvidence} />
 
         <ContactSection contactRecommendation={result.contact_recommendation} riskLevel={result.risk_level} />
 
-        <IncidentReportSection summary={result.incident_report_summary} category={result.category} />
+        <div data-tour-id="incident-report">
+          <IncidentReportSection result={result} category={result.category} city={city} evidence={reportEvidence} />
+        </div>
       </div>
 
       <FooterDisclaimer source={result.source} />
@@ -1776,39 +1871,305 @@ function LargePhraseModal({ phrase, onClose }: { phrase: string; onClose: () => 
   );
 }
 
-function EvidenceChecklist({ items }: { items: string[] }) {
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
+function QuickTourModal({
+  open,
+  stepIndex,
+  setStepIndex,
+  onClose
+}: {
+  open: boolean;
+  stepIndex: number;
+  setStepIndex: (index: number) => void;
+  onClose: () => void;
+}) {
+  const step = quickTourSteps[stepIndex];
+  const isFirst = stepIndex === 0;
+  const isLast = stepIndex === quickTourSteps.length - 1;
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowRight" && !isLast) setStepIndex(stepIndex + 1);
+      if (event.key === "ArrowLeft" && !isFirst) setStepIndex(stepIndex - 1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isFirst, isLast, onClose, open, setStepIndex, stepIndex]);
+
+  if (!open || !step) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-4 py-4 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-labelledby="quick-tour-title">
+      <div className="w-full max-w-lg animate-fadein overflow-hidden rounded-lg border border-[#E1E1E1] bg-white shadow-elevated">
+        <div className="border-b border-[#E1E1E1] bg-[#F5FAFD] px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#0078D4] text-white">
+                <Sparkles className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#0078D4]">{step.kicker}</p>
+                <h2 id="quick-tour-title" className="mt-1 text-lg font-semibold leading-snug text-[#242424]">{step.title}</h2>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1.5 text-[#616161] transition hover:bg-white hover:text-[#242424]"
+              aria-label="Close guide"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 py-5">
+          <div className="mb-4 rounded-md border border-[#E1E1E1] bg-[#FAFAFA] px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#616161]">Look for</p>
+            <p className="mt-1 text-sm font-semibold text-[#242424]">{step.target}</p>
+          </div>
+          <p className="text-sm leading-6 text-[#424242]">{step.body}</p>
+          <div className="mt-5 flex gap-1.5" aria-label="Guide progress">
+            {quickTourSteps.map((tourStep, index) => (
+              <span
+                key={tourStep.title}
+                className={`h-1.5 flex-1 rounded-full ${index <= stepIndex ? "bg-[#0078D4]" : "bg-[#E1E1E1]"}`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E1E1E1] bg-[#FAFAFA] px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-3 py-2 text-sm font-semibold text-[#616161] transition hover:bg-white hover:text-[#242424]"
+          >
+            Skip
+          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setStepIndex(Math.max(0, stepIndex - 1))}
+              disabled={isFirst}
+              className="rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={() => (isLast ? onClose() : setStepIndex(Math.min(quickTourSteps.length - 1, stepIndex + 1)))}
+              className="rounded-md bg-[#0078D4] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#106EBE]"
+            >
+              {isLast ? "Finish" : "Next"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function createReportEvidence(items: string[]): ReportEvidenceItem[] {
+  return items.map((item, index) => ({
+    id: `${index}-${item.slice(0, 24).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+    label: item,
+    saved: false,
+    note: "",
+    files: []
+  }));
+}
+
+function EvidenceChecklist({
+  items,
+  onChange
+}: {
+  items: ReportEvidenceItem[];
+  onChange: (items: ReportEvidenceItem[]) => void;
+}) {
+  const [customEvidence, setCustomEvidence] = useState("");
+
+  function updateItem(id: string, updater: (item: ReportEvidenceItem) => ReportEvidenceItem) {
+    onChange(items.map((item) => (item.id === id ? updater(item) : item)));
+  }
+
+  function clearItem(id: string) {
+    updateItem(id, (item) => ({
+      ...item,
+      saved: false,
+      note: "",
+      files: []
+    }));
+  }
+
+  function removeItem(id: string) {
+    onChange(items.filter((item) => item.id !== id));
+  }
+
+  function removeFile(id: string, fileIndex: number) {
+    updateItem(id, (item) => ({
+      ...item,
+      files: item.files.filter((_, index) => index !== fileIndex)
+    }));
+  }
+
+  function addCustomEvidence() {
+    const label = customEvidence.trim();
+    if (!label) return;
+    onChange([
+      ...items,
+      {
+        id: `custom-${Date.now()}`,
+        label,
+        saved: true,
+        note: "",
+        files: []
+      }
+    ]);
+    setCustomEvidence("");
+  }
+
   return (
     <Section title="Evidence to save">
-      <ul className="grid gap-2">
-        {items.map((item, idx) => {
-          const key = `${idx}-${item.slice(0, 16)}`;
-          const isChecked = !!checked[key];
+      <ul className="grid gap-3">
+        {items.map((item) => {
+          const isCustom = item.id.startsWith("custom-");
+          const hasUserInput = item.saved || item.note.trim() || item.files.length > 0;
           return (
-            <li key={key}>
-              <button
-                type="button"
-                onClick={() => setChecked((prev) => ({ ...prev, [key]: !prev[key] }))}
-                className="flex w-full items-start gap-3 rounded-md border border-[#E1E1E1] bg-white px-3 py-2.5 text-left text-sm transition hover:border-[#0078D4]/40"
-              >
-                <span
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
-                    isChecked
-                      ? "border-[#107C10] bg-[#107C10] text-white"
-                      : "border-[#E1E1E1] bg-white text-transparent"
-                  }`}
+            <li key={item.id} className="rounded-md border border-[#E1E1E1] bg-white p-3">
+              <div className="flex items-start justify-between gap-3">
+                <label className="flex min-w-0 cursor-pointer items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={item.saved}
+                    onChange={(event) => updateItem(item.id, (current) => ({ ...current, saved: event.target.checked }))}
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-[#C8C6C4] text-[#0078D4] focus:ring-[#0078D4]"
+                  />
+                  <span className={`leading-relaxed ${item.saved ? "font-semibold text-[#242424]" : "text-[#424242]"}`}>
+                    {item.label}
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => (isCustom ? removeItem(item.id) : clearItem(item.id))}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#E1E1E1] bg-white text-[#616161] transition hover:border-[#D83B01]/40 hover:bg-[#FBEAE0] hover:text-[#B5340A] disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label={isCustom ? "Delete evidence item" : "Clear evidence item"}
+                  title={isCustom ? "Delete evidence item" : "Clear saved state, notes, and files"}
+                  disabled={!isCustom && !hasUserInput}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                </span>
-                <span className={`leading-relaxed ${isChecked ? "text-[#9A9A9A] line-through" : "text-[#242424]"}`}>
-                  {item}
-                </span>
-              </button>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  value={item.note}
+                  onChange={(event) => updateItem(item.id, (current) => ({ ...current, note: event.target.value }))}
+                  placeholder="Add note, e.g. account name, receipt number, location, or screenshot detail"
+                  className="min-w-0 rounded-md border border-[#E1E1E1] bg-[#FAFAFA] px-3 py-2 text-xs text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/20"
+                />
+                <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-xs font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4]">
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Add file
+                  <input
+                    type="file"
+                    multiple
+                    className="sr-only"
+                    onChange={async (event) => {
+                      const input = event.currentTarget;
+                      const files = await readReportEvidenceFiles(input.files);
+                      if (files.length > 0) {
+                        updateItem(item.id, (current) => ({
+                          ...current,
+                          saved: true,
+                          files: [...current.files, ...files].slice(0, 6)
+                        }));
+                      }
+                      input.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              {item.files.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {item.files.map((file, index) => (
+                    <span key={`${file.name}-${index}`} className="inline-flex items-center gap-1 rounded-xl bg-[#EFF6FC] px-2 py-1 text-[11px] font-medium text-[#0B5394]">
+                      <Paperclip className="h-3 w-3" />
+                      {file.name}
+                      <button
+                        type="button"
+                        onClick={() => removeFile(item.id, index)}
+                        className="ml-1 rounded-full p-0.5 text-[#0B5394] transition hover:bg-white hover:text-[#B5340A]"
+                        aria-label={`Remove ${file.name}`}
+                        title="Remove file from report"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </li>
           );
         })}
       </ul>
+      <div className="mt-3 rounded-md border border-dashed border-[#C8C6C4] bg-[#FAFAFA] p-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-[#616161]">Add another evidence item</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+          <input
+            value={customEvidence}
+            onChange={(event) => setCustomEvidence(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCustomEvidence();
+              }
+            }}
+            placeholder="Example: QR screenshot with personal account name"
+            className="min-w-0 rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-xs text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/20"
+          />
+          <button
+            type="button"
+            onClick={addCustomEvidence}
+            className="rounded-md bg-[#0078D4] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#106EBE] disabled:cursor-not-allowed disabled:bg-[#C8C6C4]"
+            disabled={!customEvidence.trim()}
+          >
+            Add evidence
+          </button>
+        </div>
+      </div>
     </Section>
+  );
+}
+
+function readReportEvidenceFiles(fileList: FileList | null) {
+  const files = Array.from(fileList || []);
+  return Promise.all(
+    files.map(
+      (file) =>
+        new Promise<ReportEvidenceItem["files"][number]>((resolve) => {
+          const base = {
+            name: file.name,
+            type: file.type || "unknown",
+            size: file.size
+          };
+
+          if (!file.type.startsWith("image/")) {
+            resolve(base);
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolve({
+              ...base,
+              previewDataUrl: typeof reader.result === "string" ? reader.result : undefined
+            });
+          };
+          reader.onerror = () => resolve(base);
+          reader.readAsDataURL(file);
+        })
+    )
   );
 }
 
@@ -1969,19 +2330,28 @@ function ContactCard({
 }
 
 function IncidentReportSection({
-  summary,
-  category
+  result,
+  category,
+  city,
+  evidence
 }: {
-  summary: { english: string; thai: string };
+  result: RiskCheckResult;
   category: string;
+  city: string;
+  evidence: ReportEvidenceItem[];
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"english" | "thai">("english");
+  const [tab, setTab] = useState<"english" | "thai">("thai");
   const [copied, setCopied] = useState(false);
+  const [reportStatus, setReportStatus] = useState("");
+  const summary = result.incident_report_summary;
+  const generatedAt = useMemo(() => new Date().toLocaleString(), []);
+  const savedCount = evidence.filter((item) => item.saved || item.note.trim() || item.files.length > 0).length;
+  const reportHtml = buildIncidentReportHtml(result, city, evidence, generatedAt);
 
   async function copyReport() {
     try {
-      await navigator.clipboard.writeText(tab === "english" ? summary.english : summary.thai);
+      await navigator.clipboard.writeText(buildPlainIncidentReport(result, city, evidence, generatedAt, tab));
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -1989,8 +2359,21 @@ function IncidentReportSection({
     }
   }
 
+  function generatePdf() {
+    setReportStatus("กำลังเปิดหน้าต่างพิมพ์ กรุณาเลือกบันทึกเป็น PDF หากต้องการไฟล์ PDF");
+    try {
+      printIncidentReport(reportHtml);
+      window.setTimeout(() => {
+        setReportStatus("หากหน้าต่างพิมพ์ไม่แสดง ให้ใช้ปุ่มดาวน์โหลดรายงานด้านล่าง");
+      }, 800);
+    } catch {
+      downloadPrintableReport(reportHtml, result.category);
+      setReportStatus("ระบบพิมพ์ถูกบล็อก จึงดาวน์โหลดไฟล์รายงานสำหรับพิมพ์แทน");
+    }
+  }
+
   return (
-    <Section title="Incident report">
+    <Section title="Incident report / รายงานเหตุการณ์">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -1999,7 +2382,7 @@ function IncidentReportSection({
       >
         <span className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-[#0078D4]" />
-          View structured incident report
+          View structured incident report / ดูรายงานสำหรับส่งต่อ
         </span>
         <ChevronDown className={`h-4 w-4 text-[#616161] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
@@ -2013,10 +2396,25 @@ function IncidentReportSection({
             {tab === "english" ? summary.english : summary.thai}
           </p>
           <div className="mt-3 grid gap-2 text-xs text-[#616161]">
-            <p className="font-semibold uppercase tracking-wider text-[#616161]">Key facts</p>
+            <p className="font-semibold uppercase tracking-wider text-[#616161]">ข้อมูลสำคัญ</p>
             <ul className="grid gap-1.5">
-              <KeyFact label="Category" value={category} />
-              <KeyFact label="Generated" value={new Date().toLocaleString()} />
+              <KeyFact label="ประเภท" value={category} />
+              <KeyFact label="ระดับ" value={thaiRiskLevel(result.risk_level)} />
+              <KeyFact label="เมือง" value={city} />
+              <KeyFact label="หลักฐาน" value={`${savedCount}/${evidence.length}`} />
+              <KeyFact label="เวลา" value={generatedAt} />
+            </ul>
+          </div>
+          <div className="mt-3 rounded-md border border-[#E1E1E1] bg-[#FAFAFA] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#616161]">หลักฐานที่จะใส่ในรายงาน</p>
+            <ul className="mt-2 grid gap-1.5 text-xs text-[#424242]">
+              {evidence.map((item) => (
+                <li key={item.id}>
+                  <span className="font-semibold">{item.saved ? "บันทึกแล้ว" : "ยังไม่บันทึก"}:</span> {thaiEvidenceLabel(item.label)}
+                  {item.note ? ` - หมายเหตุ: ${item.note}` : ""}
+                  {item.files.length ? ` - ไฟล์: ${item.files.map((file) => file.name).join(", ")}` : ""}
+                </li>
+              ))}
             </ul>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -2030,21 +2428,536 @@ function IncidentReportSection({
             </button>
             <button
               type="button"
-              disabled
-              className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-[#E1E1E1] bg-[#FAFAFA] px-3 py-1.5 text-xs font-semibold text-[#9A9A9A]"
-              title="Coming soon"
+              onClick={generatePdf}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#0078D4] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#106EBE]"
             >
               <Download className="h-3.5 w-3.5" />
-              Download as PDF
-              <span className="ml-1 rounded-xl bg-[#F3F2F1] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
-                Soon
-              </span>
+              พิมพ์ / บันทึกเป็น PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                downloadPrintableReport(reportHtml, result.category);
+                setReportStatus("ดาวน์โหลดไฟล์รายงานแล้ว เปิดไฟล์และเลือกพิมพ์หรือบันทึกเป็น PDF ได้");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4]"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              ดาวน์โหลดรายงานสำหรับพิมพ์
             </button>
           </div>
+          {reportStatus && (
+            <p className="mt-3 rounded-md bg-[#EFF6FC] px-3 py-2 text-xs leading-relaxed text-[#0B5394]">
+              {reportStatus}
+            </p>
+          )}
         </div>
       )}
     </Section>
   );
+}
+
+function printIncidentReport(html: string) {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("title", "TrustPass printable incident report");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+  document.body.appendChild(iframe);
+
+  const frameDocument = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!frameDocument || !iframe.contentWindow) {
+    iframe.remove();
+    throw new Error("Printable report frame was not available.");
+  }
+
+  frameDocument.open();
+  frameDocument.write(html);
+  frameDocument.close();
+
+  window.setTimeout(() => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    window.setTimeout(() => iframe.remove(), 1500);
+  }, 250);
+}
+
+function downloadPrintableReport(html: string, category: string) {
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `trustpass-${toFileSlug(category)}-incident-report.html`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function toFileSlug(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "tourist-safety";
+}
+
+function buildPlainIncidentReport(
+  result: RiskCheckResult,
+  city: string,
+  evidence: ReportEvidenceItem[],
+  generatedAt: string,
+  language: "english" | "thai"
+) {
+  const savedEvidence = evidence.filter((item) => item.saved || item.note.trim() || item.files.length > 0);
+  if (language === "thai") {
+    return [
+      "รายงานเหตุการณ์ TrustPass Thailand",
+      `วันที่สร้างรายงาน: ${generatedAt}`,
+      `เมือง: ${city}`,
+      `ระดับความเสี่ยง: ${thaiRiskLevel(result.risk_level)}`,
+      `ประเภทเหตุการณ์: ${thaiCategory(result.category)}`,
+      "",
+      "สรุปเหตุการณ์",
+      result.incident_report_summary.thai,
+      "",
+      "สัญญาณความเสี่ยง",
+      ...thaiSignals(result).map((signal) => `- ${signal}`),
+      "",
+      "คำแนะนำเบื้องต้น",
+      ...thaiNextSteps(result).map((step) => `- ${step}`),
+      "",
+      "หลักฐานที่บันทึก",
+      ...(savedEvidence.length
+        ? savedEvidence.map((item) => {
+            const parts = [`- ${thaiEvidenceLabel(item.label)}`];
+            if (item.note.trim()) parts.push(`หมายเหตุ: ${item.note.trim()}`);
+            if (item.files.length) parts.push(`ไฟล์: ${item.files.map((file) => file.name).join(", ")}`);
+            return parts.join(" | ");
+          })
+        : ["- ยังไม่ได้บันทึกหลักฐานในรายการ"]),
+      "",
+      "การขอความช่วยเหลือ",
+      thaiSupportRecommendation(result),
+      "",
+      "หมายเหตุสำคัญ",
+      "รายงานนี้เป็นการสรุปสัญญาณความเสี่ยงเพื่อใช้ขอความช่วยเหลือ ไม่ใช่การกล่าวหาทางกฎหมาย หากมีภัยคุกคามหรือไม่สามารถออกจากสถานที่ได้ ให้โทร Tourist Police 1155 หรือขอความช่วยเหลือจากสถานที่ปลอดภัยทันที"
+    ].join("\n");
+  }
+
+  const summary = result.incident_report_summary.english;
+
+  return [
+    "TrustPass Thailand Incident Report",
+    `Generated: ${generatedAt}`,
+    `City: ${city}`,
+    `Risk level: ${result.risk_level}`,
+    `Category: ${result.category}`,
+    "",
+    "Summary",
+    summary,
+    "",
+    "Detected signals",
+    ...result.suspicious_signals.map((signal) => `- ${signal}`),
+    "",
+    "Recommended next steps",
+    ...result.safe_next_steps.map((step) => `- ${step}`),
+    "",
+    "Evidence saved",
+    ...(savedEvidence.length
+      ? savedEvidence.map((item) => {
+          const parts = [`- ${item.label}`];
+          if (item.note.trim()) parts.push(`Note: ${item.note.trim()}`);
+          if (item.files.length) parts.push(`Files: ${item.files.map((file) => file.name).join(", ")}`);
+          return parts.join(" | ");
+        })
+      : ["- No evidence marked as saved yet."]),
+    "",
+    "Contact recommendation",
+    result.contact_recommendation,
+    "",
+    "Disclaimer",
+    "This report summarizes risk signals for support staff, insurers, embassies, or tourist police. It is not a legal accusation."
+  ].join("\n");
+}
+
+function buildIncidentReportHtml(
+  result: RiskCheckResult,
+  city: string,
+  evidence: ReportEvidenceItem[],
+  generatedAt: string
+) {
+  const savedEvidence = evidence.filter((item) => item.saved || item.note.trim() || item.files.length > 0);
+  const savedCount = savedEvidence.length;
+  const orderedEvidence = [...evidence].sort((a, b) => evidencePriority(b) - evidencePriority(a));
+  const hasImages = orderedEvidence.some((item) => item.files.some((file) => file.previewDataUrl));
+
+  return `<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>รายงานเหตุการณ์ TrustPass Thailand</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #242424;
+      background: #ffffff;
+      font-family: "Segoe UI", "Tahoma", Arial, sans-serif;
+      line-height: 1.45;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 3px solid #0078D4;
+      padding-bottom: 16px;
+      margin-bottom: 18px;
+    }
+    .brand { color: #0078D4; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    h1 { margin: 4px 0 0; font-size: 28px; line-height: 1.15; }
+    h2 { margin: 0 0 8px; font-size: 15px; }
+    p { margin: 0; }
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      background: ${riskReportColor(result.risk_level)};
+      color: #ffffff;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .meta div, .section {
+      border: 1px solid #E1E1E1;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .meta span {
+      display: block;
+      color: #605E5C;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .meta strong { display: block; margin-top: 4px; font-size: 13px; }
+    .section { margin-bottom: 12px; break-inside: avoid; }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 4px 0; }
+    .evidence-list {
+      display: grid;
+      gap: 10px;
+    }
+    .evidence-card {
+      border: 1px solid #E1E1E1;
+      border-radius: 8px;
+      padding: 10px;
+      break-inside: avoid;
+    }
+    .evidence-title {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+    }
+    .evidence-title strong { font-size: 13px; }
+    .evidence-note { color: #605E5C; font-size: 12px; margin-top: 6px; }
+    .file-list { color: #605E5C; font-size: 11px; margin-top: 6px; padding-left: 18px; }
+    .image-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 8px;
+    }
+    .evidence-image {
+      border: 1px solid #E1E1E1;
+      border-radius: 8px;
+      max-height: 260px;
+      object-fit: contain;
+      width: 100%;
+      background: #FAFAFA;
+    }
+    .saved, .pending {
+      border-radius: 999px;
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+    }
+    .saved { background: #E7F6E7; color: #107C10; }
+    .pending { background: #F3F2F1; color: #605E5C; }
+    .footer {
+      color: #605E5C;
+      border-top: 1px solid #E1E1E1;
+      margin-top: 20px;
+      padding-top: 10px;
+      font-size: 11px;
+    }
+    @media print {
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <p class="brand">TrustPass Thailand</p>
+      <h1>รายงานเหตุการณ์สำหรับขอความช่วยเหลือ</h1>
+      <p>เอกสารนี้จัดทำเพื่อส่งต่อให้ตำรวจท่องเที่ยว พนักงานโรงแรม สถานทูต บริษัทประกัน หรือผู้ที่สามารถช่วยเหลือนักท่องเที่ยวได้</p>
+    </div>
+    <div>
+      <span class="badge">${escapeHtml(thaiRiskLevel(result.risk_level))}</span>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><span>วันที่สร้างรายงาน</span><strong>${escapeHtml(generatedAt)}</strong></div>
+    <div><span>เมือง</span><strong>${escapeHtml(city)}</strong></div>
+    <div><span>ประเภทเหตุการณ์</span><strong>${escapeHtml(thaiCategory(result.category))}</strong></div>
+    <div><span>หลักฐานที่บันทึก</span><strong>${savedCount}/${evidence.length} รายการ</strong></div>
+  </div>
+
+  <div class="section">
+    <h2>สรุปเหตุการณ์</h2>
+    <p>${escapeHtml(result.incident_report_summary.thai)}</p>
+  </div>
+
+  <div class="section">
+    <h2>สัญญาณความเสี่ยงที่พบ</h2>
+    <ul>${thaiSignals(result).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("")}</ul>
+  </div>
+
+  <div class="section">
+    <h2>คำแนะนำเบื้องต้น</h2>
+    <ul>${thaiNextSteps(result).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul>
+  </div>
+
+  <div class="section">
+    <h2>หลักฐานประกอบ</h2>
+    <div class="evidence-list">
+      ${orderedEvidence.map((item) => buildThaiEvidenceHtml(item)).join("")}
+    </div>
+    ${!hasImages ? `<p class="evidence-note">ยังไม่มีภาพหลักฐานแนบในรายงานนี้ หากมีภาพหน้าจอหรือรูปถ่าย ควรแนบเพิ่มเพื่อช่วยให้เจ้าหน้าที่ตรวจสอบได้ง่ายขึ้น</p>` : ""}
+  </div>
+
+  <div class="section">
+    <h2>ข้อมูลติดต่อ / การขอความช่วยเหลือ</h2>
+    <p>${escapeHtml(thaiSupportRecommendation(result))}</p>
+  </div>
+
+  <div class="section">
+    <h2>หมายเหตุสำคัญ</h2>
+    <p>รายงานนี้เป็นการสรุปสัญญาณความเสี่ยงเพื่อใช้ขอความช่วยเหลือ ไม่ใช่การกล่าวหาทางกฎหมาย หากมีการข่มขู่ กักตัว หรือไม่สามารถออกจากสถานที่ได้ ให้โทร Tourist Police 1155 หรือขอความช่วยเหลือจากโรงแรม/สถานที่สาธารณะที่ปลอดภัยทันที</p>
+  </div>
+
+  <p class="footer">
+    สร้างโดย TrustPass Thailand เพื่อช่วยจัดระเบียบข้อมูลจากนักท่องเที่ยวและหลักฐานที่เกี่ยวข้อง
+  </p>
+  <button class="no-print" onclick="window.print()" style="margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 8px; background: #0078D4; color: white; font-weight: 700;">พิมพ์หรือบันทึกเป็น PDF</button>
+</body>
+</html>`;
+}
+
+function evidencePriority(item: ReportEvidenceItem) {
+  if (item.saved) return 3;
+  if (item.files.length > 0 || item.note.trim()) return 2;
+  return 1;
+}
+
+function buildThaiEvidenceHtml(item: ReportEvidenceItem) {
+  const imageFiles = item.files.filter((file) => file.previewDataUrl);
+  const nonImageFiles = item.files.filter((file) => !file.previewDataUrl);
+  return `
+    <div class="evidence-card">
+      <div class="evidence-title">
+        <strong>${escapeHtml(thaiEvidenceLabel(item.label))}</strong>
+        <span class="${item.saved ? "saved" : "pending"}">${item.saved ? "บันทึกแล้ว" : "ยังควรเก็บเพิ่ม"}</span>
+      </div>
+      ${item.note.trim() ? `<p class="evidence-note"><strong>หมายเหตุ:</strong> ${escapeHtml(item.note.trim())}</p>` : ""}
+      ${nonImageFiles.length > 0 ? `
+        <ul class="file-list">
+          ${nonImageFiles.map((file) => `<li>${escapeHtml(file.name)} (${escapeHtml(file.type || "unknown")}, ${formatFileSize(file.size)})</li>`).join("")}
+        </ul>
+      ` : ""}
+      ${imageFiles.length > 0 ? `
+        <div class="image-grid">
+          ${imageFiles.map((file) => `
+            <div>
+              <img class="evidence-image" src="${escapeHtml(file.previewDataUrl)}" alt="${escapeHtml(file.name)}" />
+              <p class="evidence-note">${escapeHtml(file.name)} (${formatFileSize(file.size)})</p>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function thaiRiskLevel(riskLevel: RiskLevel) {
+  if (riskLevel === "Emergency") return "ฉุกเฉิน";
+  if (riskLevel === "High") return "สูง";
+  if (riskLevel === "Caution") return "ควรระวัง";
+  return "ต่ำ";
+}
+
+function thaiCategory(category: string) {
+  const text = category.toLowerCase();
+  if (text.includes("payment identity") || text.includes("qr")) return "ข้อมูลบัญชีรับเงินไม่ตรงกับร้านหรือธุรกิจ";
+  if (text.includes("tour")) return "ความเสี่ยงจากการจองทัวร์หรือการชำระเงิน";
+  if (text.includes("taxi") || text.includes("transport")) return "ความเสี่ยงด้านค่าโดยสารหรือการเดินทาง";
+  if (text.includes("food") || text.includes("menu")) return "การตรวจสอบราคาอาหารหรือเมนู";
+  if (text.includes("passport") || text.includes("document")) return "ความเสี่ยงจากการยึดเอกสารหรือพาสปอร์ต";
+  if (text.includes("damage")) return "การเรียกค่าเสียหายหรือกดดันให้จ่ายเงินสด";
+  if (text.includes("job") || text.includes("casting") || text.includes("luring")) return "ความเสี่ยงจากงาน/แคสติ้งที่อาจล่อลวง";
+  if (text.includes("outside")) return "อยู่นอกขอบเขตการตรวจสอบ";
+  if (text.includes("mismatch")) return "ข้อความและหลักฐานไม่ตรงกัน";
+  return "เหตุการณ์ที่ควรตรวจสอบเพิ่มเติม";
+}
+
+function thaiEvidenceLabel(label: string) {
+  const text = label.toLowerCase();
+  if (text.includes("screenshots") || text.includes("photos") || text.includes("conversation") || text.includes("qr payment")) {
+    return "ภาพหน้าจอหรือรูปถ่ายของแชท ใบเสร็จ สัญญา QR ชำระเงิน หรือหลักฐานการสนทนา";
+  }
+  if (text.includes("business name") || text.includes("account name") || text.includes("license")) {
+    return "ชื่อร้าน/บริษัท เบอร์โทร ชื่อบัญชีรับเงิน ชื่อโปรไฟล์ และเลขใบอนุญาตถ้ามี";
+  }
+  if (text.includes("location") || text.includes("time") || text.includes("quoted price") || text.includes("vehicle plate")) {
+    return "สถานที่ เวลา ราคาที่เรียก หมายเลขทะเบียนรถ หรือจุดรับส่งที่เกี่ยวข้อง";
+  }
+  if (text.includes("passport")) return "รูปหรือข้อความที่แสดงว่ามีการขอเก็บพาสปอร์ตตัวจริง";
+  if (text.includes("receipt")) return "ใบเสร็จหรือหลักฐานการเรียกเก็บเงิน";
+  return label;
+}
+
+function thaiSignals(result: RiskCheckResult) {
+  const translated = result.suspicious_signals.map((signal) => thaiSignal(signal, result.category));
+  const unique = Array.from(new Set(translated));
+  return unique.length > 0 ? unique : thaiFallbackSignals(result);
+}
+
+function thaiSignal(signal: string, category: string) {
+  const text = signal.toLowerCase();
+  if (text.includes("payment account") || text.includes("personal") || text.includes("mismatch")) return "ชื่อบัญชีรับเงินเป็นชื่อบุคคลหรือไม่ตรงกับชื่อร้าน/ธุรกิจ";
+  if (text.includes("qr")) return "มีการขอให้สแกนจ่ายผ่าน QR ก่อนยืนยันตัวตนของผู้รับเงิน";
+  if (text.includes("receipt")) return "ไม่มีใบเสร็จหรือเอกสารยืนยันการชำระเงินที่ชัดเจน";
+  if (text.includes("full advance") || text.includes("full payment")) return "มีการขอให้ชำระเงินเต็มจำนวนล่วงหน้า";
+  if (text.includes("license")) return "ยังไม่พบเลขใบอนุญาตหรือหลักฐานการเป็นผู้ให้บริการที่ชัดเจน";
+  if (text.includes("meter")) return "มีสัญญาณปฏิเสธการใช้มิเตอร์หรือแจ้งว่ามิเตอร์ใช้ไม่ได้";
+  if (text.includes("fixed fare") || text.includes("above route")) return "ราคาที่เรียกสูงกว่าช่วงอ้างอิงของเส้นทาง";
+  if (text.includes("passport")) return "มีการขอเก็บพาสปอร์ตตัวจริงเป็นหลักประกัน";
+  if (text.includes("cash damage") || text.includes("damage")) return "มีการเรียกค่าเสียหายเป็นเงินสดโดยไม่มีเอกสารหรือการตรวจสอบกลาง";
+  if (text.includes("pickup") || text.includes("secrecy") || text.includes("border") || text.includes("mae sot")) return "มีสัญญาณควบคุมการเดินทาง ความลับ หรือการพาไปพื้นที่ชายแดน";
+  if (text.includes("price") || text.includes("menu") || text.includes("far above")) return "ราคาที่แสดงสูงกว่าช่วงอ้างอิงและควรยืนยันกับร้านก่อนชำระเงิน";
+  return `พบสัญญาณที่ควรตรวจสอบเพิ่มเติมในกรณี${thaiCategory(category)}`;
+}
+
+function thaiFallbackSignals(result: RiskCheckResult) {
+  if (result.risk_level === "Emergency") return ["มีสัญญาณด้านความปลอดภัยที่ควรหยุดดำเนินการและขอความช่วยเหลือทันที"];
+  if (result.risk_level === "High") return ["มีสัญญาณความเสี่ยงสูง ควรหยุดจ่ายเงินหรือส่งมอบเอกสารจนกว่าจะตรวจสอบได้"];
+  if (result.risk_level === "Caution") return ["มีข้อมูลที่ควรตรวจสอบเพิ่มเติมก่อนดำเนินการต่อ"];
+  return ["ยังไม่พบสัญญาณความเสี่ยงชัดเจนจากข้อมูลที่ให้มา"];
+}
+
+function thaiNextSteps(result: RiskCheckResult) {
+  const translated = result.safe_next_steps
+    .map((step) => thaiNextStep(step))
+    .filter((step): step is string => Boolean(step));
+  const unique = Array.from(new Set(translated));
+  const fallback = thaiFallbackSteps(result.risk_level);
+  return [...unique, ...fallback].filter((step, index, arr) => arr.indexOf(step) === index).slice(0, 5);
+}
+
+function thaiNextStep(step: string): string | null {
+  const text = step.toLowerCase();
+  if (text.includes("confirm") && text.includes("account")) return "ตรวจสอบว่าชื่อบัญชีรับเงินเป็นของร้านหรือบริษัทจริงก่อนชำระเงิน";
+  if (text.includes("receipt")) return "ขอใบเสร็จหรือหลักฐานการชำระเงินที่ระบุชื่อร้าน/บริษัทอย่างชัดเจน";
+  if (text.includes("avoid") && (text.includes("transfer") || text.includes("advance"))) return "หลีกเลี่ยงการโอนเงินล่วงหน้าเข้าบัญชีบุคคลจนกว่าจะยืนยันตัวตนได้";
+  if (text.includes("public area")) return "ย้ายไปอยู่ในพื้นที่สาธารณะหรือบริเวณที่มีพนักงาน/กล้องวงจรปิด";
+  if (text.includes("hotel") || text.includes("front desk") || text.includes("platform")) return "ขอให้พนักงานโรงแรม แพลตฟอร์มจอง หรือช่องทางทางการช่วยตรวจสอบ";
+  if (text.includes("do not pay") || text.includes("pause")) return "หยุดการชำระเงินหรือการเดินทางไว้ก่อนจนกว่าจะตรวจสอบได้";
+  if (text.includes("police") || text.includes("1155")) return "โทร Tourist Police 1155 หากถูกข่มขู่ ถูกกักตัว หรือเกิดความเสียหายแล้ว";
+  if (text.includes("passport")) return "อย่ามอบพาสปอร์ตตัวจริง ให้ใช้สำเนาพาสปอร์ตหรือเงินมัดจำแทน";
+  if (text.includes("photo") || text.includes("evidence")) return "เก็บภาพหน้าจอ รูปถ่าย สถานที่ เวลา ชื่อบัญชี และรายละเอียดที่เกี่ยวข้องไว้";
+  if (text.includes("safe") || text.includes("embassy")) return "อยู่ในพื้นที่ปลอดภัยและติดต่อโรงแรม สถานทูต หรือเจ้าหน้าที่ที่ไว้ใจได้";
+  return null;
+}
+
+function thaiFallbackSteps(riskLevel: RiskLevel) {
+  if (riskLevel === "Emergency") {
+    return [
+      "หยุดเดินทางหรือทำตามคำสั่งทันที และอยู่ในพื้นที่สาธารณะที่ปลอดภัย",
+      "ติดต่อ Tourist Police 1155 โรงแรม หรือสถานทูตจากสถานที่ปลอดภัย",
+      "ส่งตำแหน่งและหลักฐานให้คนที่ไว้ใจได้"
+    ];
+  }
+  if (riskLevel === "High") {
+    return [
+      "หยุดชำระเงินหรือส่งมอบเอกสารจนกว่าจะตรวจสอบได้",
+      "ขอหลักฐานชื่อร้าน/บริษัท ใบเสร็จ และช่องทางติดต่อทางการ",
+      "ขอความช่วยเหลือจากโรงแรมหรือช่องทางทางการ หากถูกกดดันให้โทร 1155"
+    ];
+  }
+  if (riskLevel === "Caution") {
+    return [
+      "ตรวจสอบราคา ชื่อผู้รับเงิน และเงื่อนไขก่อนดำเนินการต่อ",
+      "ขอใบเสร็จหรือหลักฐานเป็นลายลักษณ์อักษร",
+      "ขอความเห็นจากพนักงานโรงแรมหรือคนท้องถิ่นที่ไว้ใจได้"
+    ];
+  }
+  return [
+    "ดำเนินการต่อได้ตามปกติ แต่ควรเก็บใบเสร็จหรือหลักฐานพื้นฐานไว้",
+    "ตรวจสอบรายละเอียดอีกครั้งหากมีการเปลี่ยนราคา เงื่อนไข หรือมีการกดดัน"
+  ];
+}
+
+function thaiSupportRecommendation(result: RiskCheckResult) {
+  if (result.risk_level === "Emergency") {
+    return "กรณีนี้ควรหยุดดำเนินการทันที อยู่ในพื้นที่สาธารณะที่ปลอดภัย และติดต่อ Tourist Police 1155 โรงแรม หรือสถานทูตโดยเร็ว";
+  }
+  if (result.risk_level === "High") {
+    return "ควรหยุดชำระเงิน เดินทาง หรือส่งมอบเอกสารก่อน และขอให้โรงแรม แพลตฟอร์มจอง หรือช่องทางทางการช่วยตรวจสอบ หากถูกข่มขู่ ถูกกดดัน หรือเกิดความเสียหายแล้ว ให้ติดต่อ Tourist Police 1155";
+  }
+  if (result.risk_level === "Caution") {
+    return "ควรตรวจสอบกับพนักงานโรงแรม ช่องทางทางการ หรือผู้ให้บริการที่น่าเชื่อถือก่อนดำเนินการต่อ ยังไม่จำเป็นต้องติดต่อเจ้าหน้าที่ตำรวจ เว้นแต่มีการข่มขู่หรือไม่สามารถออกจากสถานที่ได้";
+  }
+  return "ยังไม่พบความเสี่ยงชัดเจน ไม่จำเป็นต้องติดต่อเจ้าหน้าที่ในตอนนี้ แต่ควรเก็บใบเสร็จและหลักฐานพื้นฐานไว้";
+}
+
+function escapeHtml(value: string | number | boolean | null | undefined) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatFileSize(size: number) {
+  if (!Number.isFinite(size) || size <= 0) return "0 KB";
+  if (size < 1024 * 1024) return `${Math.ceil(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function riskReportColor(riskLevel: RiskLevel) {
+  if (riskLevel === "Emergency") return "#A4262C";
+  if (riskLevel === "High") return "#D83B01";
+  if (riskLevel === "Caution") return "#986F0B";
+  return "#107C10";
 }
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {

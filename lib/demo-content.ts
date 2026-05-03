@@ -162,6 +162,13 @@ export const visualStories = [
     text: "Full prepayment, personal accounts, missing license details, and urgency language are grounded as stronger payment-fraud signals."
   },
   {
+    title: "QR account mismatch",
+    label: "Restaurant payment",
+    image: "/evidence/restaurant-qr-mismatch-demo.png",
+    alt: "Synthetic restaurant QR payment evidence showing a personal account mismatch",
+    text: "TrustPass flags when the restaurant name and QR payment account do not match, especially when the tourist is pressured to scan and pay immediately."
+  },
+  {
     title: "Document leverage",
     label: "Rental protection",
     image: "/evidence/rental-passport-demo.png",

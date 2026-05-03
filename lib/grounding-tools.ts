@@ -391,18 +391,33 @@ export function getKnownVenueMatch(request: RiskCheckRequest) {
   const combined = combineText(request);
   const cityVenues = venues.filter((venue) => venue.city.toLowerCase() === request.city.toLowerCase());
   const textVenue = cityVenues.find((venue) => venue.keywords.some((keyword) => combined.includes(keyword.toLowerCase())));
+  const rejectedVenue = getRejectedVenueName(request);
   const nearbyVenue = request.userLocation
     ? cityVenues.find((venue) => distanceMeters(request.userLocation!.latitude, request.userLocation!.longitude, venue.lat, venue.lng) <= venue.radius_m)
     : null;
+  const usableNearbyVenue = nearbyVenue && !isRejectedVenue(nearbyVenue, rejectedVenue) ? nearbyVenue : null;
 
-  if (!textVenue && !nearbyVenue) return null;
+  if (!textVenue && !usableNearbyVenue) return null;
 
   return {
-    venue: textVenue || nearbyVenue!,
+    venue: textVenue || usableNearbyVenue!,
     matchedByText: Boolean(textVenue),
-    matchedByLocation: Boolean(nearbyVenue),
-    distanceMeters: nearbyVenue && request.userLocation ? Math.round(distanceMeters(request.userLocation.latitude, request.userLocation.longitude, nearbyVenue.lat, nearbyVenue.lng)) : null
+    matchedByLocation: Boolean(usableNearbyVenue),
+    distanceMeters: usableNearbyVenue && request.userLocation ? Math.round(distanceMeters(request.userLocation.latitude, request.userLocation.longitude, usableNearbyVenue.lat, usableNearbyVenue.lng)) : null
   };
+}
+
+function getRejectedVenueName(request: RiskCheckRequest) {
+  const answer = request.clarificationAnswers?.venue_confirmation?.toLowerCase().trim();
+  if (!answer || !/^no\b|another restaurant|not sure/.test(answer)) return null;
+  const cityVenues = venues.filter((venue) => venue.city.toLowerCase() === request.city.toLowerCase());
+  return cityVenues.find((venue) => venue.keywords.some((keyword) => answer.includes(keyword.toLowerCase())))?.name ?? "nearby venue";
+}
+
+function isRejectedVenue(venue: Venue, rejectedVenueName: string | null) {
+  if (!rejectedVenueName) return false;
+  if (rejectedVenueName === "nearby venue") return true;
+  return venue.name.toLowerCase() === rejectedVenueName.toLowerCase();
 }
 
 function getLocationGrounding(request: RiskCheckRequest): GroundingSignal | null {

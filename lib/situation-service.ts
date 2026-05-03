@@ -142,7 +142,8 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     grounding?.some((signal) => signal.tool === "venue_reference" && signal.title === "Menu venue unknown") &&
     !nonFoodGroundingPresent &&
     !hasFoodTierClue(combined) &&
-    !answeredVenueLocation
+    !answeredVenueLocation &&
+    !answeredVenue
   ) {
     return {
       clarification_key: "venue_location",

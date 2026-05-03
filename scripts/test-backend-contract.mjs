@@ -179,6 +179,23 @@ const cases = [
     expectClarificationKey: "venue_confirmation"
   },
   {
+    name: "Rejected nearby Jay Fai does not stay low",
+    body: {
+      message: "This menu photo shows crab omelette 1500 baht and noodles 800 baht. Is this a scam?",
+      city: "Bangkok",
+      language: "English",
+      incidentDateIso: "2026-05-02T05:00:00.000Z",
+      userLocation: { latitude: 13.7526, longitude: 100.5048, accuracy: 60, source: "browser" },
+      evidenceText: "Crab omelette 1500 baht. Drunken noodles 800 baht. Menu photo with no restaurant name visible.",
+      clarificationAnswers: { venue_confirmation: "No, this is another restaurant" }
+    },
+    expectStatus: "completed",
+    expectRiskIn: ["Caution", "High"],
+    rejectRiskIn: ["Low"],
+    expectGroundingTool: "food_price_reference",
+    rejectMatchedVenue: "Jay Fai"
+  },
+  {
     name: "Unknown menu location clarification",
     body: {
       message: "This menu shows crab omelette 1500 baht and noodles 800 baht. Is this normal?",
@@ -623,6 +640,13 @@ for (const testCase of cases) {
     const foodSignal = data.grounding?.find((signal) => signal.tool === "food_price_reference");
     if (foodSignal?.metadata?.matched_known_venue !== testCase.expectMatchedVenue) {
       throw new Error(`${testCase.name}: expected matched venue ${testCase.expectMatchedVenue}, got ${JSON.stringify(foodSignal?.metadata)}`);
+    }
+  }
+
+  if (testCase.rejectMatchedVenue) {
+    const foodSignal = data.grounding?.find((signal) => signal.tool === "food_price_reference");
+    if (foodSignal?.metadata?.matched_known_venue === testCase.rejectMatchedVenue) {
+      throw new Error(`${testCase.name}: rejected matched venue ${testCase.rejectMatchedVenue}, got ${JSON.stringify(foodSignal?.metadata)}`);
     }
   }
 

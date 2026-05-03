@@ -13,7 +13,7 @@ export default function ArchitecturePage() {
             <p className="text-sm font-bold uppercase tracking-wide text-azure">Azure AI Architecture</p>
             <h1 className="mt-2 text-4xl font-bold text-ink">Azure AI powers OCR and reasoning after deterministic grounding.</h1>
             <p className="mt-4 text-base leading-7 text-fluent-muted">
-              TrustPass combines tourist chat, uploaded evidence, Azure Document Intelligence OCR, local tourism-grounding tools, and Azure OpenAI reasoning to produce safer next steps before tourists pay, travel, or follow instructions.
+              TrustPass combines tourist-provided situation details, uploaded evidence, Azure Document Intelligence OCR, local tourism-grounding tools, and Azure OpenAI reasoning to produce safer next steps before tourists pay, travel, or follow instructions.
             </p>
             <Link href="/check" className="mt-6 inline-flex items-center gap-2 rounded-[8px] bg-azure px-5 py-3 text-sm font-bold text-white transition hover:bg-fluent-blueDark">
               Test the live flow

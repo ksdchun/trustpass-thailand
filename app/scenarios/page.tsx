@@ -10,9 +10,9 @@ export default function ScenariosPage() {
       <section className="border-b border-fluent-border bg-white">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <p className="text-sm font-bold uppercase tracking-wide text-azure">Guided Product Scenarios</p>
-          <h1 className="mt-2 max-w-3xl text-4xl font-bold text-ink">Show the committee the major scam categories TrustPass can detect.</h1>
+          <h1 className="mt-2 max-w-3xl text-4xl font-bold text-ink">Major tourist scam categories TrustPass can detect.</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-fluent-muted">
-            Each category demonstrates how the product combines chat, evidence extraction, deterministic grounding, clarification, Thai phrase support, and incident reporting.
+            Each category shows how the product combines situation details, evidence extraction, grounded risk checks, clarification, Thai phrase support, and incident reporting.
           </p>
         </div>
       </section>
@@ -60,11 +60,11 @@ export default function ScenariosPage() {
       <section className="border-t border-fluent-border bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
-            <p className="text-lg font-bold text-ink">Recommended judging path</p>
-            <p className="mt-1 text-sm text-fluent-muted">Start with payment or transport, then show food/menu clarification, and finish with fake job/casting emergency luring.</p>
+            <p className="text-lg font-bold text-ink">Recommended walkthrough</p>
+            <p className="mt-1 text-sm text-fluent-muted">Start with payment or transport, then try food/menu clarification, and finish with fake job/casting emergency luring.</p>
           </div>
           <Link href="/check" className="inline-flex items-center gap-2 rounded-[8px] bg-azure px-5 py-3 text-sm font-bold text-white transition hover:bg-fluent-blueDark">
-            Try in live chat
+            Try Risk Check
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

@@ -3228,7 +3228,7 @@ function FooterDisclaimer({ source }: { source: RiskCheckResult["source"] }) {
         <CheckCircle2 className="h-3 w-3" />
         Eligible Caution-or-higher signals can contribute to regional intelligence
         <span className="ml-2 rounded-xl border border-[#E1E1E1] bg-white px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#616161]">
-          {source === "azure-openai" ? "Azure OpenAI" : "Local rule engine"}
+          {source === "azure-openai" ? "Azure OpenAI" : "TrustPass Grounding"}
         </span>
       </p>
     </footer>

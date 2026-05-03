@@ -34,11 +34,11 @@ export async function analyzeSituation(input: SituationAnalyzeRequest, options: 
     payload
   );
 
-  if (shouldReturnDeterministicResult(fallback, grounding)) {
-    return toCompletedResponse(fallback);
-  }
-
-  const result = await completeWithAzure(payload, fallback, grounding);
+  const result = applyGroundingRiskAdjustments(
+    await completeWithAzure(payload, fallback, grounding),
+    grounding,
+    payload
+  );
   return toCompletedResponse(result);
 }
 
@@ -596,26 +596,6 @@ function scopeExamples() {
     "This menu photo looks expensive; is it normal for this restaurant?",
     "A casting recruiter offered airport pickup to Mae Sot and told me not to tell my hotel."
   ];
-}
-
-function shouldReturnDeterministicResult(result: RiskCheckResult, grounding: NonNullable<RiskCheckResult["grounding"]>) {
-  if (result.category === "Normal taxi fare") return true;
-  if (
-    result.risk_level !== "Low" &&
-    grounding.some((signal) =>
-      ["fare_reference", "operator_payment_reference", "qr_payment_reference", "rental_document_reference", "damage_claim_reference", "job_lure_reference"].includes(signal.tool)
-    )
-  ) {
-    return true;
-  }
-
-  const foodSignal = grounding.find((signal) => signal.tool === "food_price_reference");
-  return (
-    result.risk_level === "Low" &&
-    foodSignal?.confidence === "high" &&
-    foodSignal.metadata?.price_position === "within" &&
-    typeof foodSignal.metadata?.matched_known_venue === "string"
-  );
 }
 
 function applyGroundedSignalLabels(result: RiskCheckResult, grounding: NonNullable<RiskCheckResult["grounding"]>): RiskCheckResult {

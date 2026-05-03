@@ -122,6 +122,46 @@ const cases = [
     rejectStatus: "evidence_mismatch"
   },
   {
+    name: "Street casting invitation asks clarification",
+    body: {
+      message: "I was walking down Bangkok, and someone invited me to a job casting. Should I do it?",
+      city: "Bangkok",
+      language: "English",
+      incidentDateIso: "2026-05-02T05:00:00.000Z"
+    },
+    expectStatus: "needs_clarification",
+    expectClarificationKey: "job_casting_context",
+    expectGroundingTool: "job_lure_reference"
+  },
+  {
+    name: "Street casting invitation without red flags stays caution",
+    body: {
+      message: "I was walking down Bangkok, and someone invited me to a job casting. Should I do it?",
+      city: "Bangkok",
+      language: "English",
+      incidentDateIso: "2026-05-02T05:00:00.000Z",
+      clarificationAnswers: { job_casting_context: "No, only a street invitation" }
+    },
+    expectStatus: "completed",
+    expectRisk: "Caution",
+    expectGroundingTool: "job_lure_reference",
+    rejectRiskIn: ["Emergency"]
+  },
+  {
+    name: "Street casting invitation with pickup escalates emergency",
+    body: {
+      message: "I was walking down Bangkok, and someone invited me to a job casting. Should I do it?",
+      city: "Bangkok",
+      language: "English",
+      incidentDateIso: "2026-05-02T05:00:00.000Z",
+      clarificationAnswers: { job_casting_context: "They offered private pickup or a second location" }
+    },
+    expectStatus: "completed",
+    expectRisk: "Emergency",
+    expectGroundingTool: "job_lure_reference",
+    expectSignalIncludes: ["Controlled pickup or free transport offered"]
+  },
+  {
     name: "Mismatch choose typed situation",
     body: {
       message: "A taxi driver says he wants 50 baht to take me from Siam to Wat Pho. Is this normal?",

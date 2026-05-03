@@ -57,7 +57,7 @@ export function isGenericCheckMessage(text: string) {
   if (lower.length <= 120 && /^(is|does|do|can|could|should)\b.*\b(payment|pay|transfer|deposit|account|qr|bank|receipt|license|booking|tour|operator)\b.*\b(safe|okay|ok|legit|real|normal|suspicious|scam|trust|verify)\b[?.!]?$/.test(lower)) return true;
   if (lower.length <= 120 && /^(is|does|do|can|could|should)\b.*\b(passport|rental|rent|motorbike|scooter|contract|deposit)\b.*\b(safe|okay|ok|normal|suspicious|scam|give|leave|keep|trust|sign)\b[?.!]?$/.test(lower)) return true;
   if (lower.length <= 120 && /^(is|does|do|can|could|should)\b.*\b(damage|scratch|repair|cash|claim|fee|charge)\b.*\b(fair|normal|okay|ok|safe|suspicious|scam|pay)\b[?.!]?$/.test(lower)) return true;
-  if (lower.length <= 120 && /^(is|does|do|can|could|should)\b.*\b(job|casting|recruiter|pickup|interview|border|mae sot|myanmar)\b.*\b(safe|okay|ok|legit|real|suspicious|scam|go|trust)\b[?.!]?$/.test(lower)) return true;
+  if (lower.length <= 120 && /^(is|does|do|can|could|should)\b.*\b(job|casting|recruiter|pickup|interview|border|mae sot|myanmar)\b.*\b(safe|okay|ok|legit|real|suspicious|scam|go|do it|trust)\b[?.!]?$/.test(lower)) return true;
   if (lower.length <= 100 && /^(is|does)\b.*\b(safe|legit|real|normal|suspicious|scam|okay|ok)\b.*\b(this|it|here)\b[?.!]?$/.test(lower)) return true;
   if (lower.length <= 100 && /^(should|can|could)\b.*\b(pay|transfer|scan|give|leave|sign|go|meet|get in|trust)\b.*\b(this|it|them|him|her|there|here)?[?.!]?$/.test(lower)) return true;
   return lower.length <= 90 && /^(is this (a scam|suspicious|normal|safe|legit|real|okay|ok)|does this look (suspicious|safe|legit|real)|can i trust this|help me check this)[?.!]?$/.test(lower);
@@ -79,6 +79,13 @@ export function areTopicsCompatible(messageTopic: EvidenceTopic, evidenceTopic: 
 function detectTopic(text: string, hasPrice: boolean): EvidenceTopic {
   if (hasAny(text, ["casting", "modeling", "modelling", "photoshoot", "job offer", "recruiter", "wechat", "mae sot", "myanmar", "border"]) &&
     hasAny(text, ["pickup", "driver", "do not tell", "keep secret", "hotel", "interview", "mae sot", "border", "myanmar", "chat", "screenshot"])) {
+    return "job_lure";
+  }
+
+  if (
+    hasAny(text, ["job casting", "casting", "modeling", "modelling", "photoshoot", "job offer", "recruiter"]) &&
+    hasAny(text, ["should i", "do it", "safe", "legit", "real", "suspicious", "scam", "invited", "approached", "street", "walked", "walking"])
+  ) {
     return "job_lure";
   }
 

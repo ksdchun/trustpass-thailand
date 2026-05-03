@@ -738,9 +738,11 @@ function getJobLureGrounding(request: RiskCheckRequest): GroundingSignal | null 
 
   const signals = [
     signalIf("Job or casting offer from informal channel", combined, ["casting", "modeling", "modelling", "paid photoshoot", "job offer", "recruiter", "wechat"]),
-    signalIf("Controlled pickup or free transport offered", combined, ["airport pickup", "free transport", "driver will pick", "driver said", "pickup"]),
+    signalIf("Controlled pickup or free transport offered", combined, ["airport pickup", "free transport", "driver will pick", "driver said", "pickup", "private pickup", "private car", "come with me", "follow me", "second location", "private location"]),
     signalIf("Travel toward Mae Sot, Myanmar, or border area", combined, ["mae sot", "myanmar", "border", "poipet"]),
-    signalIf("Secrecy or isolation instruction", combined, ["do not tell", "don't tell", "keep secret", "not to tell my hotel", "change hotel"])
+    signalIf("Secrecy or isolation instruction", combined, ["do not tell", "don't tell", "keep secret", "not to tell my hotel", "change hotel"]),
+    signalIf("Passport or phone handling requested", combined, ["passport", "phone", "take your phone", "hold your phone", "give your phone", "leave your phone", "phone confiscated"]),
+    signalIf("Upfront fee or payment requested", combined, ["upfront fee", "registration fee", "casting fee", "deposit", "pay first", "pay now", "payment"])
   ].filter((signal): signal is string => Boolean(signal));
 
   if (signals.length === 0) return null;
@@ -755,6 +757,8 @@ function getJobLureGrounding(request: RiskCheckRequest): GroundingSignal | null 
       has_controlled_pickup: signals.includes("Controlled pickup or free transport offered"),
       has_border_travel: signals.includes("Travel toward Mae Sot, Myanmar, or border area"),
       has_secrecy_instruction: signals.includes("Secrecy or isolation instruction"),
+      has_document_or_phone_request: signals.includes("Passport or phone handling requested"),
+      has_upfront_fee: signals.includes("Upfront fee or payment requested"),
       grounding_source: "curated"
     }
   };

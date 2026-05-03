@@ -48,6 +48,120 @@
         "price_multiplier_note": "A normal omelette is usually inexpensive, but crab omelette at a famous seafood venue can be premium."
       }
     ],
+    "menu_items": [
+      {
+        "id": "pad_thai",
+        "label": "Pad Thai",
+        "category": "noodle",
+        "keywords": ["pad thai", "ผัดไทย"],
+        "notes": "Common one-dish noodle meal; premium pricing usually needs venue or seafood context.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [40, 90],
+          "local_casual_restaurant": [80, 180],
+          "mall_food_court": [60, 130],
+          "department_store_restaurant": [180, 320],
+          "premium_famous_venue": [350, 900]
+        }
+      },
+      {
+        "id": "fried_rice",
+        "label": "Fried rice",
+        "category": "rice",
+        "keywords": ["fried rice", "ข้าวผัด"],
+        "notes": "Usually inexpensive unless seafood, crab, or premium restaurant context is present.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [45, 100],
+          "local_casual_restaurant": [80, 180],
+          "mall_food_court": [60, 130],
+          "department_store_restaurant": [180, 350],
+          "premium_famous_venue": [300, 1200]
+        }
+      },
+      {
+        "id": "noodle_soup",
+        "label": "Noodle soup",
+        "category": "noodle",
+        "keywords": ["noodle soup", "noodles", "ก๋วยเตี๋ยว", "noodle"],
+        "notes": "A basic noodle dish is normally affordable; high pricing should be checked against venue tier and ingredients.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [40, 90],
+          "local_casual_restaurant": [70, 160],
+          "mall_food_court": [50, 120],
+          "department_store_restaurant": [160, 300],
+          "premium_famous_venue": [250, 900]
+        }
+      },
+      {
+        "id": "som_tam",
+        "label": "Som tam",
+        "category": "salad",
+        "keywords": ["som tam", "papaya salad", "ส้มตำ"],
+        "notes": "Street/local som tam is usually low-cost unless seafood, crab, or premium venue context applies.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [40, 90],
+          "local_casual_restaurant": [70, 180],
+          "mall_food_court": [60, 130],
+          "department_store_restaurant": [150, 300],
+          "premium_famous_venue": [250, 800]
+        }
+      },
+      {
+        "id": "seafood_pasta",
+        "label": "Seafood pasta",
+        "category": "seafood",
+        "keywords": ["seafood pasta", "pasta seafood"],
+        "notes": "Western seafood dishes are often priced higher in mall and department-store restaurants.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [120, 250],
+          "local_casual_restaurant": [180, 350],
+          "mall_food_court": [150, 280],
+          "department_store_restaurant": [280, 550],
+          "premium_famous_venue": [500, 1500]
+        }
+      },
+      {
+        "id": "crab_fried_rice",
+        "label": "Crab fried rice",
+        "category": "seafood",
+        "keywords": ["crab fried rice", "ข้าวผัดปู"],
+        "notes": "Crab can materially raise the normal range, especially at premium seafood venues.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [80, 180],
+          "local_casual_restaurant": [150, 320],
+          "mall_food_court": [120, 250],
+          "department_store_restaurant": [300, 650],
+          "premium_famous_venue": [500, 1800]
+        }
+      },
+      {
+        "id": "crab_omelette",
+        "label": "Crab omelette",
+        "category": "seafood",
+        "keywords": ["crab omelette", "crab omelet", "ไข่เจียวปู"],
+        "notes": "A normal omelette is cheap, but crab omelette at famous venues can be a destination-priced dish.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [80, 180],
+          "local_casual_restaurant": [180, 450],
+          "mall_food_court": [150, 350],
+          "department_store_restaurant": [350, 900],
+          "premium_famous_venue": [1000, 4000]
+        }
+      },
+      {
+        "id": "thai_drink",
+        "label": "Thai tea / soft drink",
+        "category": "drink",
+        "keywords": ["thai tea", "milk tea", "soft drink", "water", "ชาไทย", "น้ำเปล่า"],
+        "notes": "Drink pricing varies by venue, but extreme drink prices should be checked against the displayed menu and receipt.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [15, 50],
+          "local_casual_restaurant": [30, 90],
+          "mall_food_court": [25, 80],
+          "department_store_restaurant": [60, 180],
+          "premium_famous_venue": [80, 300]
+        }
+      }
+    ],
     "sources": [
       {
         "title": "Numbeo: Cost of Living in Bangkok restaurant prices",

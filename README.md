@@ -82,9 +82,14 @@ AZURE_OPENAI_API_KEY=your-key
 AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
 AZURE_OPENAI_API_VERSION=2024-10-21
 
+AZURE_AI_SERVICES_ENDPOINT=https://your-resource.cognitiveservices.azure.com
+AZURE_AI_SERVICES_API_KEY=your-key
+
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com
 AZURE_DOCUMENT_INTELLIGENCE_KEY=your-key
 ```
+
+`AZURE_DOCUMENT_INTELLIGENCE_*` is optional when `AZURE_AI_SERVICES_*` is set. TrustPass uses the shared Azure AI Services endpoint/key from Foundry for OCR, and only falls back to demo extraction when no usable Azure AI Services credentials are configured.
 
 ## Tech Stack
 

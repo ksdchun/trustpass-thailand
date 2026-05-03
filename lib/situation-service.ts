@@ -10,7 +10,7 @@ type AnalyzeOptions = {
 
 export async function analyzeSituation(input: SituationAnalyzeRequest, options: AnalyzeOptions): Promise<SituationAnalyzeResponse> {
   const payload = normalizeAnalyzeRequest(input);
-  const grounding = buildGroundingContext(payload);
+  const grounding = await buildGroundingContext(payload);
   const clarification = options.allowClarification ? getClarification(payload, grounding) : null;
 
   if (clarification) {
@@ -60,6 +60,10 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
   const answeredVenueLocation = hasAnswer(request, "venue_location");
   const answeredQrAccount = hasAnswer(request, "qr_account_match");
 
+  if (hasDeterministicNonFoodEscalation(grounding)) {
+    return null;
+  }
+
   if (
     hasMenuContext(combined, hints.prices) &&
     venueMatch?.matchedByLocation &&
@@ -68,6 +72,7 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !answeredVenue
   ) {
     return {
+      clarification_key: "venue_confirmation",
       question: `Are you currently inside ${venueMatch.venue.name}, or did this menu come from ${venueMatch.venue.name}?`,
       reason: "Your GPS is near a known premium venue, but the menu text does not clearly show the restaurant name. The venue context materially changes whether high prices are normal.",
       suggested_answers: [`Yes, this is ${venueMatch.venue.name}`, "No, this is another restaurant", "Not sure"]
@@ -82,6 +87,7 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !answeredVenueLocation
   ) {
     return {
+      clarification_key: "venue_location",
       question: "Where is this menu from, or are you currently at the restaurant?",
       reason: "Menu price risk depends heavily on the restaurant and location. The OCR did not find a clear venue name and no GPS location was provided.",
       suggested_answers: ["I am at the restaurant now", "I only have a menu screenshot", "I can share the restaurant name"]
@@ -97,14 +103,21 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !answeredVenueLocation
   ) {
     return {
+      clarification_key: "venue_location",
       question: "Is this really a street/local stall, or is it a sit-down, mall, seafood, or famous venue?",
       reason: "The detected price is high for a normal street/local stall, but the same price may be normal at seafood, mall, or famous venues.",
       suggested_answers: ["Street/local stall", "Mall or sit-down restaurant", "Famous or seafood venue"]
     };
   }
 
-  if (hasQrPersonalAccountConcern(combined) && !hasBusinessIdentity(combined, hints.business_names) && !answeredQrAccount) {
+  if (
+    hasQrPersonalAccountConcern(combined) &&
+    !hasBusinessIdentity(combined, hints.business_names) &&
+    !hasGroundingTool(grounding, "operator_payment_reference") &&
+    !answeredQrAccount
+  ) {
     return {
+      clarification_key: "qr_account_match",
       question: "Does the QR/payment account name match the business or tour operator name?",
       reason: "A personal payment account can be normal for some small businesses, but a mismatch matters for fraud risk and refund disputes.",
       suggested_answers: ["Yes, it matches", "No, it is a different personal name", "The business name is not shown"]
@@ -117,6 +130,7 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !answeredVenueLocation
   ) {
     return {
+      clarification_key: "venue_location",
       question: "Can you confirm the restaurant name or share your location?",
       reason: "The evidence appears to be a menu, but the backend cannot ground whether the price is normal for that venue.",
       suggested_answers: ["I can share location", "I can type the restaurant name", "I am not sure"]
@@ -225,14 +239,15 @@ function applyGroundingRiskAdjustments(
   grounding: NonNullable<RiskCheckResult["grounding"]>,
   request: RiskCheckRequest
 ): RiskCheckResult {
-  const normalFoodPriceResult = getNormalFoodPriceResult(result, grounding, request);
-  if (normalFoodPriceResult && result.risk_level !== "High" && result.risk_level !== "Emergency" && !hasConcreteFoodScamSignal(combineText(request))) {
+  const groundedResult = applyGroundedSignalLabels(result, grounding);
+  const normalFoodPriceResult = getNormalFoodPriceResult(groundedResult, grounding, request);
+  if (normalFoodPriceResult && groundedResult.risk_level !== "High" && groundedResult.risk_level !== "Emergency" && !hasConcreteFoodScamSignal(combineText(request))) {
     return normalFoodPriceResult;
   }
 
-  if (result.risk_level !== "Low") return result;
+  if (groundedResult.risk_level !== "Low") return groundedResult;
 
-  const normalTaxiResult = getNormalTaxiResult(result, grounding, request);
+  const normalTaxiResult = getNormalTaxiResult(groundedResult, grounding, request);
   if (normalTaxiResult) return normalTaxiResult;
 
   const foodSignal = grounding.find((signal) => signal.tool === "food_price_reference");
@@ -243,10 +258,10 @@ function applyGroundingRiskAdjustments(
     : "the expected";
   const highestPrice = foodSignal?.metadata?.highest_price_baht;
 
-  if (pricePosition !== "far_above" && pricePosition !== "above") return result;
+  if (pricePosition !== "far_above" && pricePosition !== "above") return groundedResult;
 
   return {
-    ...result,
+    ...groundedResult,
     risk_level: "Caution",
     category: "Food price verification",
     suspicious_signals: [
@@ -270,6 +285,14 @@ function applyGroundingRiskAdjustments(
 
 function shouldReturnDeterministicResult(result: RiskCheckResult, grounding: NonNullable<RiskCheckResult["grounding"]>) {
   if (result.category === "Normal taxi fare") return true;
+  if (
+    result.risk_level !== "Low" &&
+    grounding.some((signal) =>
+      ["fare_reference", "operator_payment_reference", "qr_payment_reference", "rental_document_reference", "damage_claim_reference", "job_lure_reference"].includes(signal.tool)
+    )
+  ) {
+    return true;
+  }
 
   const foodSignal = grounding.find((signal) => signal.tool === "food_price_reference");
   return (
@@ -278,6 +301,38 @@ function shouldReturnDeterministicResult(result: RiskCheckResult, grounding: Non
     foodSignal.metadata?.price_position === "within" &&
     typeof foodSignal.metadata?.matched_known_venue === "string"
   );
+}
+
+function applyGroundedSignalLabels(result: RiskCheckResult, grounding: NonNullable<RiskCheckResult["grounding"]>): RiskCheckResult {
+  const signals: string[] = [];
+  const fareSignal = grounding.find((signal) => signal.tool === "fare_reference");
+  const farePosition = fareSignal?.metadata?.fare_position;
+  const suspiciousFareSignals = Array.isArray(fareSignal?.metadata?.suspicious_fare_signals)
+    ? fareSignal.metadata.suspicious_fare_signals
+    : [];
+
+  if (suspiciousFareSignals.some((signal) => typeof signal === "string" && /meter|no meter|refuse/i.test(signal))) {
+    signals.push("Meter refusal or meter unavailable");
+  }
+  if (farePosition === "above" || farePosition === "far_above") {
+    signals.push("Fixed fare quote above route baseline");
+  }
+
+  for (const signal of grounding) {
+    if (!["operator_payment_reference", "qr_payment_reference", "rental_document_reference", "damage_claim_reference", "job_lure_reference"].includes(signal.tool)) continue;
+    const interpreted = signal.metadata?.interpreted_signals;
+    if (Array.isArray(interpreted)) {
+      signals.push(...interpreted.filter((item): item is string => typeof item === "string"));
+    }
+  }
+
+  const uniqueSignals = Array.from(new Set(signals)).slice(0, 8);
+  if (uniqueSignals.length === 0) return result;
+
+  return {
+    ...result,
+    suspicious_signals: uniqueSignals
+  };
 }
 
 function getNormalFoodPriceResult(
@@ -408,7 +463,7 @@ function combineText(request: RiskCheckRequest) {
 }
 
 function hasMenuContext(text: string, prices: string[]) {
-  return prices.length > 0 && /menu|เมนู|restaurant|ร้าน|food|dish|crab|omelette|noodle|rice|pad thai|ผัด|อาหาร|ราคา|price/i.test(text);
+  return prices.length > 0 && /menu|เมนู|restaurant|ร้าน|food|dish|crab|omelette|noodle|rice|pad thai|ผัด|อาหาร/i.test(text);
 }
 
 function hasFoodTierClue(text: string) {
@@ -436,6 +491,18 @@ function hasQrPersonalAccountConcern(text: string) {
 
 function hasBusinessIdentity(text: string, businessNames: string[]) {
   return businessNames.length > 0 || /company|co\.|ltd|limited|license|operator|tour company|restaurant|ร้าน|บริษัท/i.test(text);
+}
+
+function hasGroundingTool(grounding: RiskCheckResult["grounding"], tool: string) {
+  return Boolean(grounding?.some((signal) => signal.tool === tool));
+}
+
+function hasDeterministicNonFoodEscalation(grounding: RiskCheckResult["grounding"]) {
+  return Boolean(
+    grounding?.some((signal) =>
+      ["operator_payment_reference", "rental_document_reference", "damage_claim_reference", "job_lure_reference"].includes(signal.tool)
+    )
+  );
 }
 
 function hasAnswer(request: RiskCheckRequest, key: string) {

@@ -18,6 +18,7 @@ import {
   Maximize2,
   Paperclip,
   PhoneCall,
+  RefreshCw,
   Shield,
   ShieldCheck,
   Sparkles,
@@ -25,7 +26,16 @@ import {
   Upload,
   X
 } from "lucide-react";
-import type { Language, RiskCheckResult, RiskLevel, UserLocation } from "@/lib/types";
+import type {
+  EvidenceExtractResult,
+  GroundingSignal,
+  Language,
+  RiskCheckResult,
+  RiskLevel,
+  SituationAnalyzeRequest,
+  SituationAnalyzeResponse,
+  UserLocation
+} from "@/lib/types";
 
 const cities = ["Bangkok", "Phuket", "Pattaya", "Chiang Mai"];
 const languageOptions: Array<{ value: Language; label: string }> = [
@@ -55,12 +65,36 @@ const demoLocations: Array<{ id: string; label: string; location: UserLocation |
 
 const sampleChips: Array<{ label: string; text: string }> = [
   {
+    label: "Normal taxi",
+    text: "A taxi driver says he wants 50 baht to take me from Siam to Wat Pho. Is this normal?"
+  },
+  {
     label: "Suspicious taxi",
     text: "A taxi driver says the meter is broken and wants 800 baht to take me from Siam to Wat Pho."
   },
   {
+    label: "Mall menu",
+    text: "This menu shows seafood pasta 320 baht and crab fried rice 450 baht. I am at Siam Paragon. Is this suspicious?"
+  },
+  {
+    label: "Street food high price",
+    text: "A street food stall menu shows pad thai 320 baht and fried rice 350 baht. Is this normal?"
+  },
+  {
+    label: "Jay Fai menu",
+    text: "I am at Jay Fai. The menu shows crab omelette 1500 baht and drunken noodles 800 baht. Is this suspicious?"
+  },
+  {
     label: "Tour booking",
     text: "A LINE tour seller is asking for full payment today to a personal bank account and will not show a license number."
+  },
+  {
+    label: "Passport rental",
+    text: "The motorbike rental shop wants to keep my original passport as a deposit."
+  },
+  {
+    label: "QR mismatch",
+    text: "Restaurant QR payment account name is a different personal name and they say scan to pay now."
   },
   {
     label: "Casting offer",
@@ -73,6 +107,9 @@ const loadingStages = [
   "Cross-referencing Thailand risk patterns…",
   "Generating action plan…"
 ];
+
+type PendingClarification = Extract<SituationAnalyzeResponse, { status: "needs_clarification" }>;
+type CompletedSituation = Extract<SituationAnalyzeResponse, { status: "completed" }>;
 
 type RiskTheme = {
   hex: string;
@@ -161,12 +198,17 @@ export function TrustPassChat() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [extractedText, setExtractedText] = useState("");
+  const [evidenceResult, setEvidenceResult] = useState<EvidenceExtractResult | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [result, setResult] = useState<RiskCheckResult | null>(null);
+  const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<SituationAnalyzeRequest | null>(null);
+  const [clarificationAnswer, setClarificationAnswer] = useState("");
   const [resultKey, setResultKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -196,6 +238,9 @@ export function TrustPassChat() {
   function chooseFile(next: File | null) {
     setFile(next);
     setExtractedText("");
+    setEvidenceResult(null);
+    setPendingClarification(null);
+    setClarificationAnswer("");
   }
 
   function onDrop(event: React.DragEvent) {
@@ -213,6 +258,84 @@ export function TrustPassChat() {
     if (match?.location) setCity("Bangkok");
   }
 
+  function handlePickSample(text: string) {
+    setMessage(text);
+    setErrorMessage(null);
+    setPendingClarification(null);
+    setClarificationAnswer("");
+    if (result) {
+      setResult(null);
+      setExtractedText("");
+      setEvidenceResult(null);
+      setFile(null);
+    }
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  function handleNewCheck() {
+    setMessage("");
+    setFile(null);
+    setExtractedText("");
+    setEvidenceResult(null);
+    setResult(null);
+    setPendingClarification(null);
+    setPendingRequest(null);
+    setClarificationAnswer("");
+    setErrorMessage(null);
+    setResultKey((k) => k + 1);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  async function runSituationAnalysis(body: SituationAnalyzeRequest) {
+    const response = await fetch("/api/situation/analyze", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    const payload = (await response.json()) as SituationAnalyzeResponse | { error: string };
+    if ("error" in payload) throw new Error(payload.error);
+
+    if (payload.status === "needs_clarification") {
+      setPendingRequest(body);
+      setPendingClarification(payload);
+      setClarificationAnswer("");
+      setResult(null);
+      return;
+    }
+
+    const nextResult = situationToRiskResult(payload);
+    persistCase(nextResult, body.city);
+    setPendingClarification(null);
+    setPendingRequest(null);
+    setClarificationAnswer("");
+    setResult(nextResult);
+    setResultKey((k) => k + 1);
+  }
+
+  async function answerClarification(answer: string) {
+    if (!pendingRequest || !pendingClarification || isChecking) return;
+    const trimmed = answer.trim();
+    if (!trimmed) return;
+
+    setIsChecking(true);
+    setErrorMessage(null);
+
+    try {
+      await runSituationAnalysis({
+        ...pendingRequest,
+        clarificationAnswers: {
+          ...(pendingRequest.clarificationAnswers || {}),
+          [pendingClarification.clarification_key || "general_context"]: trimmed
+        }
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Could not continue this check. Please try again.");
+    } finally {
+      setIsChecking(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if ((!message.trim() && !file) || isChecking) return;
@@ -226,31 +349,23 @@ export function TrustPassChat() {
         const formData = new FormData();
         formData.append("file", file);
         const extractResponse = await fetch("/api/extract", { method: "POST", body: formData });
-        const extractData = await extractResponse.json();
+        const extractData = (await extractResponse.json()) as EvidenceExtractResult;
         extracted = extractData.extractedText || "";
+        setEvidenceResult(extractData);
         setExtractedText(extracted);
       }
 
-      const response = await fetch("/api/risk-check", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          message,
-          city,
-          language,
-          incidentDateIso: new Date(`${incidentDate}T12:00:00+07:00`).toISOString(),
-          extractedText: extracted,
-          userLocation: userLocation ?? undefined,
-          attachmentsMetadata: file ? [{ name: file.name, type: file.type, size: file.size }] : []
-        })
-      });
+      const body: SituationAnalyzeRequest = {
+        message,
+        city,
+        language,
+        incidentDateIso: new Date(`${incidentDate}T12:00:00+07:00`).toISOString(),
+        evidenceText: extracted,
+        userLocation: userLocation ?? undefined,
+        attachmentsMetadata: file ? [{ name: file.name, type: file.type, size: file.size }] : []
+      };
 
-      const payload = (await response.json()) as RiskCheckResult | { error: string };
-      if ("error" in payload) throw new Error(payload.error);
-
-      persistCase(payload, city);
-      setResult(payload);
-      setResultKey((k) => k + 1);
+      await runSituationAnalysis(body);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not check this situation. Please try again.");
     } finally {
@@ -292,17 +407,30 @@ export function TrustPassChat() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <ContextBar
+        city={city}
+        setCity={setCity}
+        language={language}
+        setLanguage={setLanguage}
+        incidentDate={incidentDate}
+        setIncidentDate={setIncidentDate}
+        demoLocationId={demoLocationId}
+        setDemoLocationId={handleDemoLocationChange}
+        userLocation={userLocation}
+        isLocating={isLocating}
+        locationError={locationError}
+        onUseLocation={handleUseLocation}
+      />
+
       <div className="grid gap-6 lg:grid-cols-[380px_1fr] lg:items-start">
         <FormPanel
           message={message}
           setMessage={setMessage}
-          city={city}
-          setCity={setCity}
-          language={language}
-          setLanguage={setLanguage}
+          textareaRef={textareaRef}
           file={file}
           previewUrl={previewUrl}
           extractedText={extractedText}
+          evidenceResult={evidenceResult}
           chooseFile={chooseFile}
           fileInputRef={fileInputRef}
           dropZoneRef={dropZoneRef}
@@ -311,12 +439,6 @@ export function TrustPassChat() {
           onDrop={onDrop}
           onSubmit={handleSubmit}
           isChecking={isChecking}
-          demoLocationId={demoLocationId}
-          setDemoLocationId={handleDemoLocationChange}
-          userLocation={userLocation}
-          isLocating={isLocating}
-          locationError={locationError}
-          onUseLocation={handleUseLocation}
         />
 
         <div className="min-w-0">
@@ -332,10 +454,17 @@ export function TrustPassChat() {
 
           {isChecking ? (
             <ResultSkeleton stage={loadingStages[stageIndex]} />
+          ) : pendingClarification ? (
+            <ClarificationPanel
+              clarification={pendingClarification}
+              answer={clarificationAnswer}
+              setAnswer={setClarificationAnswer}
+              onAnswer={answerClarification}
+            />
           ) : result ? (
-            <ResultPanel key={resultKey} result={result} city={city} />
+            <ResultPanel key={resultKey} result={result} city={city} onNewCheck={handleNewCheck} />
           ) : (
-            <EmptyState onPickSample={(text) => setMessage(text)} />
+            <EmptyState onPickSample={handlePickSample} />
           )}
         </div>
       </div>
@@ -343,24 +472,13 @@ export function TrustPassChat() {
   );
 }
 
-type FormPanelProps = {
-  message: string;
-  setMessage: (v: string) => void;
+type ContextBarProps = {
   city: string;
   setCity: (v: string) => void;
   language: Language;
   setLanguage: (v: Language) => void;
-  file: File | null;
-  previewUrl: string | null;
-  extractedText: string;
-  chooseFile: (f: File | null) => void;
-  fileInputRef: React.RefObject<HTMLInputElement>;
-  dropZoneRef: React.RefObject<HTMLDivElement>;
-  isDragging: boolean;
-  setIsDragging: (v: boolean) => void;
-  onDrop: (e: React.DragEvent) => void;
-  onSubmit: (e: FormEvent) => void;
-  isChecking: boolean;
+  incidentDate: string;
+  setIncidentDate: (v: string) => void;
   demoLocationId: string;
   setDemoLocationId: (v: string) => void;
   userLocation: UserLocation | null;
@@ -369,17 +487,127 @@ type FormPanelProps = {
   onUseLocation: () => void;
 };
 
+function ContextBar({
+  city,
+  setCity,
+  language,
+  setLanguage,
+  incidentDate,
+  setIncidentDate,
+  demoLocationId,
+  setDemoLocationId,
+  userLocation,
+  isLocating,
+  locationError,
+  onUseLocation
+}: ContextBarProps) {
+  return (
+    <section className="mb-5 rounded-lg border border-[#E1E1E1] bg-white p-3 shadow-card">
+      <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+        <div className="grid grid-cols-3 gap-2">
+          <Field label="City" icon={<MapPin className="h-3.5 w-3.5" />}>
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="w-full rounded-md border border-[#E1E1E1] bg-white px-2 py-2 text-xs text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
+            >
+              {cities.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Language" icon={<Languages className="h-3.5 w-3.5" />}>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as Language)}
+              className="w-full rounded-md border border-[#E1E1E1] bg-white px-2 py-2 text-xs text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
+            >
+              {languageOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Date" icon={<FileText className="h-3.5 w-3.5" />}>
+            <input
+              type="date"
+              value={incidentDate}
+              onChange={(e) => setIncidentDate(e.target.value)}
+              className="w-full rounded-md border border-[#E1E1E1] bg-white px-2 py-2 text-xs text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
+            />
+          </Field>
+        </div>
+
+        <Field label="Location context" icon={<MapPin className="h-3.5 w-3.5" />}>
+          <select
+            value={demoLocationId}
+            onChange={(e) => setDemoLocationId(e.target.value)}
+            className="w-full rounded-md border border-[#E1E1E1] bg-white px-2 py-2 text-xs text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
+          >
+            {demoLocations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <button
+          type="button"
+          onClick={onUseLocation}
+          disabled={isLocating}
+          className="inline-flex h-[34px] items-center justify-center gap-1.5 rounded-md border border-[#E1E1E1] bg-white px-3 text-xs font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4] disabled:cursor-not-allowed disabled:text-[#9A9A9A]"
+        >
+          {isLocating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LocateFixed className="h-3.5 w-3.5" />}
+          Use GPS
+        </button>
+      </div>
+
+      {(userLocation || locationError) && (
+        <div className="mt-2">
+          {userLocation && (
+            <p className="rounded-md bg-[#EFF6FC] px-2.5 py-1.5 text-[11px] font-medium text-[#0B5394]">
+              Location set: {userLocation.latitude.toFixed(4)}, {userLocation.longitude.toFixed(4)}
+            </p>
+          )}
+          {locationError && (
+            <p className="rounded-md bg-[#FBE9EA] px-2.5 py-1.5 text-[11px] font-medium text-[#A4262C]">{locationError}</p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+type FormPanelProps = {
+  message: string;
+  setMessage: (v: string) => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  file: File | null;
+  previewUrl: string | null;
+  extractedText: string;
+  evidenceResult: EvidenceExtractResult | null;
+  chooseFile: (f: File | null) => void;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  dropZoneRef: React.RefObject<HTMLDivElement>;
+  isDragging: boolean;
+  setIsDragging: (v: boolean) => void;
+  onDrop: (e: React.DragEvent) => void;
+  onSubmit: (e: FormEvent) => void;
+  isChecking: boolean;
+};
+
 function FormPanel(props: FormPanelProps) {
   const {
-    message, setMessage, city, setCity, language, setLanguage,
-    file, previewUrl, extractedText, chooseFile, fileInputRef, dropZoneRef,
-    isDragging, setIsDragging, onDrop, onSubmit, isChecking,
-    demoLocationId, setDemoLocationId, userLocation, isLocating, locationError, onUseLocation
+    message, setMessage, textareaRef,
+    file, previewUrl, extractedText, evidenceResult, chooseFile, fileInputRef, dropZoneRef,
+    isDragging, setIsDragging, onDrop, onSubmit, isChecking
   } = props;
 
   return (
-    <form onSubmit={onSubmit} className="lg:sticky lg:top-20 lg:self-start">
-      <div className="mb-5 flex items-center gap-3">
+    <form onSubmit={onSubmit} className="lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100vh-6rem)] lg:flex-col lg:self-start">
+      <div className="mb-4 flex shrink-0 items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0078D4] text-white shadow-card">
           <ShieldCheck className="h-5 w-5" />
         </span>
@@ -389,172 +617,113 @@ function FormPanel(props: FormPanelProps) {
         </div>
       </div>
 
-      <Card title="Describe Your Situation">
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Tell us what's happening. For example: A taxi driver says the meter is broken and wants 800 baht to take me to Wat Pho."
-          rows={6}
-          className="min-h-[160px] w-full resize-y rounded-md border border-[#E1E1E1] bg-white px-3 py-3 text-sm leading-relaxed text-[#242424] placeholder:text-[#9A9A9A] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
-        />
-      </Card>
+      <div className="min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+        <Card title="1. Describe Situation">
+          <textarea
+            ref={textareaRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Tell us what's happening. For example: A taxi driver says the meter is broken and wants 800 baht to take me to Wat Pho."
+            rows={5}
+            className="min-h-[170px] w-full resize-y rounded-md border border-[#E1E1E1] bg-white px-3 py-3 text-sm leading-relaxed text-[#242424] placeholder:text-[#9A9A9A] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
+          />
+        </Card>
 
-      <Card title="Add Evidence" optional>
-        <div
-          ref={dropZoneRef}
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={onDrop}
-          className={`flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-6 text-center transition ${
-            isDragging
-              ? "border-[#0078D4] bg-[#EFF6FC]"
-              : file
-              ? "border-[#E1E1E1] bg-[#FAFAFA]"
-              : "border-[#E1E1E1] bg-white hover:border-[#0078D4] hover:bg-[#F5FAFD]"
-          }`}
-        >
-          {!file ? (
-            <>
-              <Upload className="h-6 w-6 text-[#0078D4]" />
-              <p className="text-sm font-medium text-[#242424]">Drag &amp; drop a file</p>
-              <p className="text-xs text-[#616161]">or</p>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded-md border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4]"
-              >
-                Browse files
-              </button>
-              <p className="mt-1 text-[11px] text-[#9A9A9A]">Supports JPG, PNG, PDF</p>
-            </>
-          ) : (
-            <div className="flex w-full flex-col items-stretch gap-3">
-              <div className="flex items-start gap-3">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#E1E1E1] bg-[#F3F2F1]">
-                  {previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <FileText className="h-6 w-6 text-[#616161]" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <p className="truncate text-sm font-medium text-[#242424]">{file.name}</p>
-                  <p className="text-xs text-[#616161]">{(file.size / 1024).toFixed(0)} KB</p>
-                </div>
+        <Card title="2. Add Evidence" optional>
+          <div
+            ref={dropZoneRef}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={onDrop}
+            className={`flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-5 text-center transition ${
+              isDragging
+                ? "border-[#0078D4] bg-[#EFF6FC]"
+                : file
+                ? "border-[#E1E1E1] bg-[#FAFAFA]"
+                : "border-[#E1E1E1] bg-white hover:border-[#0078D4] hover:bg-[#F5FAFD]"
+            }`}
+          >
+            {!file ? (
+              <>
+                <Upload className="h-5 w-5 text-[#0078D4]" />
+                <p className="text-sm font-medium text-[#242424]">Drop evidence or browse files</p>
                 <button
                   type="button"
-                  onClick={() => chooseFile(null)}
-                  className="rounded-md p-1.5 text-[#616161] transition hover:bg-[#F3F2F1] hover:text-[#A4262C]"
-                  aria-label="Remove file"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-md border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4]"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  Browse files
                 </button>
-              </div>
-              {extractedText && (
-                <div className="rounded-md bg-[#F3F2F1] px-3 py-2 text-left text-xs leading-5 text-[#616161]">
-                  <span className="font-semibold text-[#242424]">Extracted: </span>
-                  {extractedText.slice(0, 80)}
-                  {extractedText.length > 80 && "…"}
+                <p className="mt-1 text-[11px] text-[#9A9A9A]">Supports JPG, PNG, PDF</p>
+              </>
+            ) : (
+              <div className="flex w-full flex-col items-stretch gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#E1E1E1] bg-[#F3F2F1]">
+                    {previewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <FileText className="h-6 w-6 text-[#616161]" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="truncate text-sm font-medium text-[#242424]">{file.name}</p>
+                    <p className="text-xs text-[#616161]">{(file.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => chooseFile(null)}
+                    className="rounded-md p-1.5 text-[#616161] transition hover:bg-[#F3F2F1] hover:text-[#A4262C]"
+                    aria-label="Remove file"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
-              )}
-            </div>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,.pdf"
-            className="hidden"
-            onChange={(e) => chooseFile(e.target.files?.[0] ?? null)}
-          />
-        </div>
-      </Card>
-
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <Field label="City" icon={<MapPin className="h-3.5 w-3.5" />}>
-          <select
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="w-full rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
-          >
-            {cities.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Language" icon={<Languages className="h-3.5 w-3.5" />}>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value as Language)}
-            className="w-full rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
-          >
-            {languageOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+                {extractedText && (
+                  <div className="rounded-md bg-[#F3F2F1] px-3 py-2 text-left text-xs leading-5 text-[#616161]">
+                    <span className="font-semibold text-[#242424]">Extracted: </span>
+                    {extractedText.slice(0, 80)}
+                    {extractedText.length > 80 && "…"}
+                  </div>
+                )}
+                {evidenceResult && <EvidenceReadout evidence={evidenceResult} />}
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={(e) => chooseFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+        </Card>
       </div>
 
-      <Card title="Location context" optional>
-        <div className="grid gap-3">
-          <button
-            type="button"
-            onClick={onUseLocation}
-            disabled={isLocating}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4] disabled:cursor-not-allowed disabled:text-[#9A9A9A]"
-          >
-            {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-            {isLocating ? "Reading location..." : "Use browser location"}
-          </button>
-
-          <Field label="Demo location" icon={<MapPin className="h-3.5 w-3.5" />}>
-            <select
-              value={demoLocationId}
-              onChange={(e) => setDemoLocationId(e.target.value)}
-              className="w-full rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
-            >
-              {demoLocations.map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          {userLocation && (
-            <p className="rounded-md bg-[#EFF6FC] px-3 py-2 text-xs font-medium text-[#0B5394]">
-              Location set: {userLocation.latitude.toFixed(4)}, {userLocation.longitude.toFixed(4)}
-            </p>
+      <div className="sticky bottom-0 z-10 border-t border-[#E1E1E1] bg-[#FAF9F8]/95 pt-3 backdrop-blur lg:shrink-0">
+        <button
+          type="submit"
+          disabled={isChecking || (!message.trim() && !file)}
+          className="group flex w-full items-center justify-center gap-2 rounded-md bg-[#0078D4] px-4 py-3 text-sm font-semibold text-white shadow-card transition hover:bg-[#106EBE] hover:shadow-elevated active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#BDBDBD] disabled:shadow-none"
+        >
+          {isChecking ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Analyzing&hellip;
+            </>
+          ) : (
+            <>
+              <Shield className="h-4 w-4" />
+              Check Risk
+            </>
           )}
-          {locationError && (
-            <p className="rounded-md bg-[#FBE9EA] px-3 py-2 text-xs font-medium text-[#A4262C]">{locationError}</p>
-          )}
-        </div>
-      </Card>
+        </button>
 
-      <button
-        type="submit"
-        disabled={isChecking || (!message.trim() && !file)}
-        className="group flex w-full items-center justify-center gap-2 rounded-md bg-[#0078D4] px-4 py-3 text-sm font-semibold text-white shadow-card transition hover:bg-[#106EBE] hover:shadow-elevated active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#BDBDBD] disabled:shadow-none"
-      >
-        {isChecking ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Analyzing&hellip;
-          </>
-        ) : (
-          <>
-            <Shield className="h-4 w-4" />
-            Check Risk
-          </>
-        )}
-      </button>
-
-      <p className="mt-3 text-center text-[11px] font-medium text-[#9A9A9A]">
-        Powered by Azure AI &middot; Document Intelligence + OpenAI
-      </p>
+        <p className="mt-2 pb-1 text-center text-[11px] font-medium text-[#9A9A9A]">
+          Powered by Azure AI &middot; Document Intelligence + OpenAI
+        </p>
+      </div>
     </form>
   );
 }
@@ -614,6 +783,117 @@ function EmptyState({ onPickSample }: { onPickSample: (text: string) => void }) 
   );
 }
 
+function ClarificationPanel({
+  clarification,
+  answer,
+  setAnswer,
+  onAnswer
+}: {
+  clarification: PendingClarification;
+  answer: string;
+  setAnswer: (value: string) => void;
+  onAnswer: (answer: string) => void;
+}) {
+  return (
+    <article className="animate-fadein rounded-lg border border-[#E1E1E1] bg-white p-6 shadow-card sm:p-7">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EFF6FC] text-[#0078D4]">
+          <Sparkles className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#0078D4]">One detail needed</p>
+          <h2 className="mt-2 text-xl font-semibold leading-snug text-[#242424]">{clarification.question}</h2>
+          <p className="mt-3 text-sm leading-relaxed text-[#616161]">{clarification.reason}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-2">
+        {clarification.suggested_answers.map((suggested) => (
+          <button
+            key={suggested}
+            type="button"
+            onClick={() => onAnswer(suggested)}
+            className="rounded-md border border-[#E1E1E1] bg-white px-4 py-3 text-left text-sm font-medium text-[#242424] transition hover:border-[#0078D4] hover:bg-[#F5FAFD] hover:text-[#0078D4]"
+          >
+            {suggested}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-5 rounded-md border border-[#E1E1E1] bg-[#FAFAFA] p-3">
+        <label className="text-xs font-semibold uppercase tracking-wider text-[#616161]">Or type an answer</label>
+        <div className="mt-2 flex gap-2">
+          <input
+            value={answer}
+            onChange={(event) => setAnswer(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") onAnswer(answer);
+            }}
+            placeholder="Type the restaurant name, venue context, or account detail"
+            className="min-w-0 flex-1 rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
+          />
+          <button
+            type="button"
+            onClick={() => onAnswer(answer)}
+            disabled={!answer.trim()}
+            className="rounded-md bg-[#0078D4] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#106EBE] disabled:cursor-not-allowed disabled:bg-[#BDBDBD]"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function EvidenceReadout({ evidence }: { evidence: EvidenceExtractResult }) {
+  const { detectedFields } = evidence;
+  const sourceLabel = detectedFields.source === "azure-document-intelligence" ? "Azure Document Intelligence" : "Demo fallback extraction";
+  const hintRows = [
+    ["Prices", detectedFields.hints.prices],
+    ["Accounts", detectedFields.hints.account_names],
+    ["Businesses", detectedFields.hints.business_names],
+    ["Places", detectedFields.hints.place_names],
+    ["Risk phrases", detectedFields.hints.risky_phrases],
+    ["Dates", detectedFields.hints.visible_dates]
+  ] as const;
+
+  return (
+    <div className="rounded-md border border-[#E1E1E1] bg-white p-3 text-left">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-[#242424]">Evidence readout</p>
+        <span className="rounded-xl border border-[#E1E1E1] bg-[#FAFAFA] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#616161]">
+          {sourceLabel}
+        </span>
+      </div>
+      {detectedFields.note && (
+        <p className="mt-2 rounded-md bg-[#FFF4CE] px-2.5 py-1.5 text-[11px] leading-relaxed text-[#7A5A00]">
+          {detectedFields.note}
+        </p>
+      )}
+      <div className="mt-3 max-h-24 overflow-y-auto rounded-md bg-[#FAFAFA] px-3 py-2 text-[11px] leading-5 text-[#616161]">
+        {evidence.extractedText || "No readable text detected."}
+      </div>
+      <div className="mt-3 grid gap-2">
+        {hintRows.map(([label, values]) => (
+          values.length > 0 && (
+            <div key={label}>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9A9A9A]">{label}</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {values.slice(0, 6).map((value) => (
+                  <span key={value} className="rounded-xl bg-[#EFF6FC] px-2 py-0.5 text-[10px] font-medium text-[#0B5394]">
+                    {value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ResultSkeleton({ stage }: { stage: string }) {
   return (
     <div className="rounded-lg border border-[#E1E1E1] bg-white p-6 shadow-card">
@@ -644,13 +924,27 @@ function ResultSkeleton({ stage }: { stage: string }) {
   );
 }
 
-function ResultPanel({ result, city }: { result: RiskCheckResult; city: string }) {
+function ResultPanel({ result, city, onNewCheck }: { result: RiskCheckResult; city: string; onNewCheck: () => void }) {
   const theme = riskTheme[result.risk_level];
   const score = riskScoreFor(result.risk_level);
   const [showLargePhrase, setShowLargePhrase] = useState(false);
 
   return (
     <article className="animate-fadein overflow-hidden rounded-lg border border-[#E1E1E1] bg-white shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E1E1E1] bg-white px-5 py-3 sm:px-7">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#616161]">Assessment complete</p>
+          <p className="mt-0.5 text-sm font-semibold text-[#242424]">{result.category}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onNewCheck}
+          className="inline-flex items-center gap-2 rounded-md border border-[#0078D4] bg-white px-3 py-2 text-xs font-semibold text-[#0078D4] transition hover:bg-[#EFF6FC]"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          New check
+        </button>
+      </div>
       <HeroSection result={result} theme={theme} score={score} city={city} />
 
       <div className="space-y-7 px-6 py-6 sm:px-7">
@@ -659,6 +953,10 @@ function ResultPanel({ result, city }: { result: RiskCheckResult; city: string }
         </Section>
 
         <SignalsSection signals={result.suspicious_signals} theme={theme} />
+
+        <GroundingDetailsSection result={result} />
+
+        <CaseSpecificCardsSection result={result} />
 
         <ActionsSection actions={result.safe_next_steps} />
 
@@ -678,6 +976,394 @@ function ResultPanel({ result, city }: { result: RiskCheckResult; city: string }
       )}
     </article>
   );
+}
+
+type PriceComparison = {
+  item_name: string;
+  listed_price_baht: number;
+  normal_range_baht: [number, number];
+  tier_label: string;
+  result: "within" | "above" | "far_above";
+  confidence: "low" | "medium" | "high";
+  explanation: string;
+};
+
+function GroundingDetailsSection({ result }: { result: RiskCheckResult }) {
+  const foodSignal = result.grounding?.find((signal) => signal.tool === "food_price_reference");
+  const fareSignal = result.grounding?.find((signal) => signal.tool === "fare_reference");
+  const routeSignal = result.grounding?.find((signal) => signal.tool === "route_distance");
+  const priceComparisons = getPriceComparisons(foodSignal?.metadata);
+  const taxiGrounding = getTaxiGrounding(fareSignal?.metadata, routeSignal?.metadata);
+
+  if (priceComparisons.length === 0 && !taxiGrounding) return null;
+
+  return (
+    <Section title="Grounding details">
+      <div className="grid gap-3">
+        {priceComparisons.length > 0 && (
+          <div className="overflow-hidden rounded-md border border-[#E1E1E1] bg-white">
+            <div className="border-b border-[#E1E1E1] bg-[#FAFAFA] px-4 py-3">
+              <p className="text-sm font-semibold text-[#242424]">Menu price comparison</p>
+              <p className="mt-1 text-xs leading-relaxed text-[#616161]">
+                Compared against curated Bangkok references for {foodSignal?.metadata?.likely_tier_label as string || "the likely venue tier"}.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-[#E1E1E1] text-left text-xs">
+                <thead className="bg-white text-[#616161]">
+                  <tr>
+                    <th className="whitespace-nowrap px-4 py-2 font-semibold">Item</th>
+                    <th className="whitespace-nowrap px-4 py-2 font-semibold">Listed</th>
+                    <th className="whitespace-nowrap px-4 py-2 font-semibold">Normal range</th>
+                    <th className="whitespace-nowrap px-4 py-2 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F3F2F1]">
+                  {priceComparisons.map((comparison) => (
+                    <tr key={`${comparison.item_name}-${comparison.listed_price_baht}`}>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-[#242424]">{comparison.item_name}</p>
+                        <p className="mt-1 max-w-[280px] text-[11px] leading-relaxed text-[#616161]">{comparison.explanation}</p>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 font-semibold text-[#242424]">
+                        {comparison.listed_price_baht} THB
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-[#616161]">
+                        {comparison.normal_range_baht[0]}-{comparison.normal_range_baht[1]} THB
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <GroundingBadge status={comparison.result} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {taxiGrounding && (
+          <div className="rounded-md border border-[#E1E1E1] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#242424]">Taxi route and fare grounding</p>
+                <p className="mt-1 text-xs leading-relaxed text-[#616161]">
+                  {taxiGrounding.origin && taxiGrounding.destination
+                    ? `${taxiGrounding.origin} to ${taxiGrounding.destination}`
+                    : "Bangkok taxi meter rule"}
+                </p>
+              </div>
+              <span className="rounded-xl border border-[#E1E1E1] bg-[#FAFAFA] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#616161]">
+                {taxiGrounding.source === "azure_maps" ? "Azure Maps" : taxiGrounding.source === "curated" ? "Curated estimate" : "Fallback"}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <Metric label="Distance" value={taxiGrounding.distance ? `${taxiGrounding.distance.toFixed(1)} km` : "Unknown"} />
+              <Metric label="Expected meter" value={taxiGrounding.estimate ? `${taxiGrounding.estimate[0]}-${taxiGrounding.estimate[1]} THB` : "Rule only"} />
+              <Metric label="Quoted fare" value={taxiGrounding.quoted ? `${taxiGrounding.quoted} THB` : "Not provided"} />
+            </div>
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function CaseSpecificCardsSection({ result }: { result: RiskCheckResult }) {
+  const signals = result.grounding || [];
+  const cards = [
+    buildOperatorCard(signals.find((signal) => signal.tool === "operator_payment_reference")),
+    buildQrCard(signals.find((signal) => signal.tool === "qr_payment_reference")),
+    buildRentalDocumentCard(signals.find((signal) => signal.tool === "rental_document_reference")),
+    buildDamageClaimCard(signals.find((signal) => signal.tool === "damage_claim_reference")),
+    buildJobLureCard(signals.find((signal) => signal.tool === "job_lure_reference"))
+  ].filter((card): card is CaseGuidanceCard => Boolean(card));
+
+  if (cards.length === 0) return null;
+
+  return (
+    <Section title="Case-specific guidance">
+      <div className="grid gap-3">
+        {cards.map((card) => (
+          <div key={card.title} className="rounded-md border border-[#E1E1E1] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#242424]">{card.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-[#616161]">{card.summary}</p>
+              </div>
+              <span className="rounded-xl border border-[#E1E1E1] bg-[#FAFAFA] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#616161]">
+                {card.badge}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {card.checks.map((check) => (
+                <GuidanceCheck key={check.label} {...check} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+type CaseGuidanceCheck = {
+  label: string;
+  value: string;
+  active: boolean;
+};
+
+type CaseGuidanceCard = {
+  title: string;
+  summary: string;
+  badge: string;
+  checks: CaseGuidanceCheck[];
+};
+
+function GuidanceCheck({ label, value, active }: CaseGuidanceCheck) {
+  return (
+    <div className={`rounded-md border px-3 py-2.5 ${active ? "border-[#D83B01]/30 bg-[#FBEAE0]" : "border-[#E1E1E1] bg-[#FAFAFA]"}`}>
+      <p className={`text-[10px] font-semibold uppercase tracking-wider ${active ? "text-[#B5340A]" : "text-[#616161]"}`}>{label}</p>
+      <p className="mt-1 text-xs leading-relaxed text-[#242424]">{value}</p>
+    </div>
+  );
+}
+
+function buildOperatorCard(signal?: GroundingSignal): CaseGuidanceCard | null {
+  if (!signal) return null;
+  return {
+    title: "Tour/operator verification",
+    summary: "Verify identity before paying. TrustPass checks whether the seller is asking for advance transfer without the basic operator proof tourists need.",
+    badge: "Tour payment",
+    checks: [
+      {
+        label: "Advance payment",
+        value: asBoolean(signal.metadata?.has_full_advance_payment) ? "Full advance payment was detected." : "No full advance payment signal detected.",
+        active: asBoolean(signal.metadata?.has_full_advance_payment)
+      },
+      {
+        label: "Account identity",
+        value: asBoolean(signal.metadata?.has_personal_account) ? "Payment appears to go to a personal account." : "No personal account signal detected.",
+        active: asBoolean(signal.metadata?.has_personal_account)
+      },
+      {
+        label: "License proof",
+        value: asBoolean(signal.metadata?.has_missing_license) ? "Operator or TAT license details are missing." : "License concern was not detected.",
+        active: asBoolean(signal.metadata?.has_missing_license)
+      },
+      {
+        label: "Safer path",
+        value: "Ask for license details, written cancellation terms, and an official receipt before paying.",
+        active: false
+      }
+    ]
+  };
+}
+
+function buildQrCard(signal?: GroundingSignal): CaseGuidanceCard | null {
+  if (!signal) return null;
+  return {
+    title: "QR/payment identity check",
+    summary: "The key issue is whether the account receiving money belongs to the business. A mismatch makes refunds and disputes much harder.",
+    badge: "Payment",
+    checks: [
+      {
+        label: "Account match",
+        value: asBoolean(signal.metadata?.has_account_mismatch) ? "Account name appears personal or mismatched." : "No clear mismatch detected.",
+        active: asBoolean(signal.metadata?.has_account_mismatch)
+      },
+      {
+        label: "Receipt",
+        value: "Ask for an itemized receipt that names the business before sending a large payment.",
+        active: false
+      },
+      {
+        label: "Dispute risk",
+        value: "If the account is personal, keep a screenshot of QR code, account name, amount, and chat context.",
+        active: true
+      },
+      {
+        label: "Safer path",
+        value: "Pay at the counter or through the official booking platform when possible.",
+        active: false
+      }
+    ]
+  };
+}
+
+function buildRentalDocumentCard(signal?: GroundingSignal): CaseGuidanceCard | null {
+  if (!signal) return null;
+  return {
+    title: "Rental/passport protection",
+    summary: "TrustPass treats original passport retention as a leverage risk. Safer rental terms should avoid handing over the original document.",
+    badge: "Rental",
+    checks: [
+      {
+        label: "Passport",
+        value: asBoolean(signal.metadata?.has_original_passport_request) ? "Original passport requested as deposit." : "No original passport request detected.",
+        active: asBoolean(signal.metadata?.has_original_passport_request)
+      },
+      {
+        label: "Alternative",
+        value: "Offer a passport copy plus refundable cash/card deposit instead.",
+        active: false
+      },
+      {
+        label: "Before use",
+        value: "Take photos/video of all sides, fuel level, helmet, and existing scratches.",
+        active: false
+      },
+      {
+        label: "Paper trail",
+        value: "Keep the contract, receipt, shop name, and deposit terms.",
+        active: false
+      }
+    ]
+  };
+}
+
+function buildDamageClaimCard(signal?: GroundingSignal): CaseGuidanceCard | null {
+  if (!signal) return null;
+  return {
+    title: "Rental damage dispute",
+    summary: "The product separates legitimate damage claims from pressure patterns: large immediate cash demands, no receipt, and no neutral inspection.",
+    badge: "Damage claim",
+    checks: [
+      {
+        label: "Cash demand",
+        value: asBoolean(signal.metadata?.has_large_cash_demand) ? "Large immediate cash demand detected." : "No large cash amount detected.",
+        active: asBoolean(signal.metadata?.has_large_cash_demand)
+      },
+      {
+        label: "Receipt",
+        value: asBoolean(signal.metadata?.has_no_receipt) ? "No receipt or written estimate was detected." : "Receipt concern was not detected.",
+        active: asBoolean(signal.metadata?.has_no_receipt)
+      },
+      {
+        label: "Neutral process",
+        value: "Ask for written estimate, photos, contract terms, insurer/platform, or neutral inspection.",
+        active: false
+      },
+      {
+        label: "If pressured",
+        value: "Move to a public area and contact hotel staff, insurer, platform support, or Tourist Police 1155.",
+        active: true
+      }
+    ]
+  };
+}
+
+function buildJobLureCard(signal?: GroundingSignal): CaseGuidanceCard | null {
+  if (!signal) return null;
+  return {
+    title: "Fake job/casting emergency protocol",
+    summary: "This pattern is safety-first. Recruitment plus controlled pickup, secrecy, and border travel should be treated as a stop condition.",
+    badge: "Emergency",
+    checks: [
+      {
+        label: "Controlled pickup",
+        value: asBoolean(signal.metadata?.has_controlled_pickup) ? "Pickup or free transport was detected." : "No pickup signal detected.",
+        active: asBoolean(signal.metadata?.has_controlled_pickup)
+      },
+      {
+        label: "Border travel",
+        value: asBoolean(signal.metadata?.has_border_travel) ? "Mae Sot, Myanmar, or border travel was detected." : "No border travel signal detected.",
+        active: asBoolean(signal.metadata?.has_border_travel)
+      },
+      {
+        label: "Secrecy",
+        value: asBoolean(signal.metadata?.has_secrecy_instruction) ? "Secrecy or isolation instruction was detected." : "No secrecy signal detected.",
+        active: asBoolean(signal.metadata?.has_secrecy_instruction)
+      },
+      {
+        label: "Stop action",
+        value: "Do not travel to the pickup point. Stay public and contact hotel staff, Tourist Police 1155, or embassy.",
+        active: true
+      }
+    ]
+  };
+}
+
+function GroundingBadge({ status }: { status: PriceComparison["result"] }) {
+  const style =
+    status === "within"
+      ? { label: "Normal", bg: "#E8F5E9", text: "#107C10" }
+      : status === "above"
+      ? { label: "Slightly high", bg: "#FFF4CE", text: "#7A5A00" }
+      : { label: "Unusually high", bg: "#FBE9EA", text: "#A4262C" };
+
+  return (
+    <span className="rounded-xl px-2 py-1 text-[10px] font-semibold uppercase tracking-wide" style={{ backgroundColor: style.bg, color: style.text }}>
+      {style.label}
+    </span>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-[#FAFAFA] px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#616161]">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-[#242424]">{value}</p>
+    </div>
+  );
+}
+
+function getPriceComparisons(metadata: Record<string, unknown> | undefined): PriceComparison[] {
+  const raw = metadata?.price_comparisons;
+  if (!Array.isArray(raw)) return [];
+
+  return raw.filter((item): item is PriceComparison => {
+    if (!item || typeof item !== "object") return false;
+    const candidate = item as Partial<PriceComparison>;
+    return (
+      typeof candidate.item_name === "string" &&
+      typeof candidate.listed_price_baht === "number" &&
+      Array.isArray(candidate.normal_range_baht) &&
+      candidate.normal_range_baht.length === 2 &&
+      typeof candidate.normal_range_baht[0] === "number" &&
+      typeof candidate.normal_range_baht[1] === "number" &&
+      typeof candidate.tier_label === "string" &&
+      (candidate.result === "within" || candidate.result === "above" || candidate.result === "far_above") &&
+      typeof candidate.explanation === "string"
+    );
+  });
+}
+
+function getTaxiGrounding(fareMetadata?: Record<string, unknown>, routeMetadata?: Record<string, unknown>) {
+  if (!fareMetadata && !routeMetadata) return null;
+
+  const estimate = asNumberPair(fareMetadata?.taxi_meter_estimate_baht ?? fareMetadata?.baseline_range_baht);
+  const distance = asNumber(routeMetadata?.route_distance_km ?? fareMetadata?.route_distance_km);
+  const quoted = asNumber(fareMetadata?.quoted_fare_baht);
+  const source = asString(routeMetadata?.grounding_source ?? fareMetadata?.grounding_source) || "fallback";
+
+  if (!estimate && !distance && !quoted) return null;
+
+  return {
+    estimate,
+    distance,
+    quoted,
+    source,
+    origin: asString(routeMetadata?.route_origin ?? fareMetadata?.route_origin),
+    destination: asString(routeMetadata?.route_destination ?? fareMetadata?.route_destination)
+  };
+}
+
+function asNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function asBoolean(value: unknown) {
+  return value === true;
+}
+
+function asNumberPair(value: unknown): [number, number] | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  return typeof value[0] === "number" && typeof value[1] === "number" ? [value[0], value[1]] : null;
 }
 
 function HeroSection({
@@ -945,38 +1631,122 @@ function ContactSection({
   contactRecommendation: string;
   riskLevel: RiskLevel;
 }) {
-  const isUrgent = riskLevel === "Emergency" || riskLevel === "High";
+  const support = supportPlanFor(riskLevel);
   return (
-    <Section title="Who to contact">
+    <Section title="Recommended support level">
       <div className="grid gap-3 sm:grid-cols-3">
-        <ContactCard
-          tone="primary"
-          title="Primary"
-          subtitle="Tourist Police"
-          value="1155"
-          icon={<PhoneCall className="h-4 w-4" />}
-          highlight
-        />
-        <ContactCard
-          tone="default"
-          title="Secondary"
-          subtitle="Hotel front desk"
-          value="Use hotel number"
-          icon={<ShieldCheck className="h-4 w-4" />}
-        />
-        <ContactCard
-          tone="default"
-          title="When to escalate"
-          subtitle={isUrgent ? "Embassy / Consulate" : "Trusted platform"}
-          value={isUrgent ? "Passport, detention, trafficking" : "Verify operator before paying"}
-          icon={<AlertTriangle className="h-4 w-4" />}
-        />
+        {support.map((item) => (
+          <ContactCard
+            key={item.title}
+            title={item.title}
+            subtitle={item.subtitle}
+            value={item.value}
+            icon={item.icon}
+            highlight={item.highlight}
+          />
+        ))}
       </div>
       <p className="mt-3 rounded-md bg-[#FAFAFA] px-3 py-2.5 text-xs leading-relaxed text-[#616161]">
         {contactRecommendation}
       </p>
     </Section>
   );
+}
+
+function supportPlanFor(riskLevel: RiskLevel) {
+  if (riskLevel === "Emergency") {
+    return [
+      {
+        title: "Immediate help",
+        subtitle: "Tourist Police",
+        value: "Call 1155 from a safe public place",
+        icon: <PhoneCall className="h-4 w-4" />,
+        highlight: true
+      },
+      {
+        title: "Safety backup",
+        subtitle: "Hotel / Embassy",
+        value: "Ask staff or consulate to help now",
+        icon: <ShieldCheck className="h-4 w-4" />
+      },
+      {
+        title: "Medical emergency",
+        subtitle: "Emergency medical",
+        value: "Call 1669 if injured or unsafe",
+        icon: <AlertTriangle className="h-4 w-4" />
+      }
+    ];
+  }
+
+  if (riskLevel === "High") {
+    return [
+      {
+        title: "First step",
+        subtitle: "Pause and verify",
+        value: "Do not pay, travel, or hand over documents yet",
+        icon: <ShieldCheck className="h-4 w-4" />,
+        highlight: true
+      },
+      {
+        title: "Practical help",
+        subtitle: "Hotel / official channel",
+        value: "Ask front desk or platform support to verify",
+        icon: <CheckCircle2 className="h-4 w-4" />
+      },
+      {
+        title: "Escalate if pressured",
+        subtitle: "Tourist Police",
+        value: "Call 1155 if threatened or blocked",
+        icon: <PhoneCall className="h-4 w-4" />
+      }
+    ];
+  }
+
+  if (riskLevel === "Caution") {
+    return [
+      {
+        title: "First step",
+        subtitle: "Verify calmly",
+        value: "Confirm price, identity, and receipt before paying",
+        icon: <CheckCircle2 className="h-4 w-4" />,
+        highlight: true
+      },
+      {
+        title: "Second opinion",
+        subtitle: "Hotel / trusted local",
+        value: "Ask staff if the price or terms feel unclear",
+        icon: <ShieldCheck className="h-4 w-4" />
+      },
+      {
+        title: "Escalate only if needed",
+        subtitle: "Tourist Police",
+        value: "Use 1155 only for pressure, threats, or refusal to let you leave",
+        icon: <PhoneCall className="h-4 w-4" />
+      }
+    ];
+  }
+
+  return [
+    {
+      title: "No escalation",
+      subtitle: "Continue normally",
+      value: "No police or official contact needed",
+      icon: <CheckCircle2 className="h-4 w-4" />,
+      highlight: true
+    },
+    {
+      title: "Basic check",
+      subtitle: "Confirm details",
+      value: "Confirm destination, price, menu, or receipt",
+      icon: <ShieldCheck className="h-4 w-4" />
+    },
+    {
+      title: "If things change",
+      subtitle: "Re-check later",
+      value: "Use TrustPass again if pressure or hidden fees appear",
+      icon: <AlertTriangle className="h-4 w-4" />
+    }
+  ];
 }
 
 function ContactCard({
@@ -986,7 +1756,6 @@ function ContactCard({
   icon,
   highlight
 }: {
-  tone: "primary" | "default";
   title: string;
   subtitle: string;
   value: string;
@@ -1128,6 +1897,22 @@ function FooterDisclaimer({ source }: { source: RiskCheckResult["source"] }) {
       </p>
     </footer>
   );
+}
+
+function situationToRiskResult(response: CompletedSituation): RiskCheckResult {
+  return {
+    risk_level: response.risk_level,
+    category: response.category,
+    suspicious_signals: response.signals,
+    why_it_matters: response.why_it_matters,
+    safe_next_steps: response.next_steps,
+    thai_phrase: response.thai_phrase,
+    evidence_to_save: response.evidence_to_save,
+    contact_recommendation: response.contact_recommendation,
+    incident_report_summary: response.report,
+    grounding: response.grounding,
+    source: response.source
+  };
 }
 
 function persistCase(result: RiskCheckResult, city: string) {

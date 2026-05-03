@@ -64,6 +64,31 @@ type FoodSource = {
   summary: string;
 };
 
+type MenuItemReference = {
+  id: string;
+  label: string;
+  category: string;
+  keywords: string[];
+  notes: string;
+  typical_baht_by_tier: Record<string, number[]>;
+};
+
+type ParsedMenuItem = {
+  item_name: string;
+  listed_price_baht: number;
+  detected_category: string;
+  matched_reference_id: string | null;
+};
+
+type RouteEstimate = {
+  origin: Place;
+  destination: Place;
+  straightLineKm: number;
+  estimatedRoadKm: number;
+  source: "azure_maps" | "curated";
+  travelTimeMinutes?: number;
+};
+
 type PricePosition = "within" | "above" | "far_above";
 
 const zones = locationContext.zones as Zone[];
@@ -75,13 +100,20 @@ const bangkokTaxiCitation = {
   url: "https://www.thailand.go.th/issue-focus-detail/001_08_001"
 };
 
-export function buildGroundingContext(request: RiskCheckRequest): GroundingSignal[] {
+export async function buildGroundingContext(request: RiskCheckRequest): Promise<GroundingSignal[]> {
+  const routeEstimate = await estimateBangkokRoute(request);
+
   return [
     getLocationGrounding(request),
-    getRouteDistanceGrounding(request),
-    getTaxiFareGrounding(request),
+    getRouteDistanceGrounding(request, routeEstimate),
+    getTaxiFareGrounding(request, routeEstimate),
     getVenueGrounding(request),
     getFoodPriceGrounding(request),
+    getOperatorPaymentGrounding(request),
+    getQrPaymentGrounding(request),
+    getRentalDocumentGrounding(request),
+    getDamageClaimGrounding(request),
+    getJobLureGrounding(request),
     getEventGrounding(request),
     getWebGroundingStatus()
   ].filter((signal): signal is GroundingSignal => Boolean(signal));
@@ -103,23 +135,32 @@ function getFoodPriceGrounding(request: RiskCheckRequest): GroundingSignal | nul
   const reference = foodPriceReference.bangkok;
   const tiers = reference.tiers as FoodTier[];
   const sources = reference.sources as FoodSource[];
+  const itemReferences = reference.menu_items as MenuItemReference[];
   const venueMatch = getKnownVenueMatch(request);
   const likelyTier = chooseFoodTier(combined, tiers, venueMatch?.venue.food_tier_id);
+  const menuItems = parseMenuItems(text, prices, itemReferences);
+  const priceComparisons = buildPriceComparisons(menuItems, likelyTier, itemReferences, sources);
   const highestPrice = Math.max(...prices);
   const itemBand = likelyTier.typical_item_baht;
   const mealBand = likelyTier.typical_meal_baht;
-  const pricePosition = getPricePosition(highestPrice, itemBand);
+  const pricePosition = getWorstPricePosition(priceComparisons.map((comparison) => comparison.result)) || getPricePosition(highestPrice, itemBand);
   const confidence = venueMatch ? "high" : inferFoodTierConfidence(combined);
   const dishNotes = getDishNotes(combined);
   const allTierSummary = tiers
     .map((tier) => `${tier.label}: ${tier.typical_item_baht[0]}-${tier.typical_item_baht[1]} THB/item`)
     .join("; ");
+  const comparisonSummary = priceComparisons.length
+    ? `Item comparisons: ${priceComparisons
+        .map((item) => `${item.item_name} ${item.listed_price_baht} THB vs ${item.normal_range_baht[0]}-${item.normal_range_baht[1]} THB (${item.result})`)
+        .join("; ")}. `
+    : "";
 
   return {
     tool: "food_price_reference",
     title: `Food price tier: ${likelyTier.label}`,
     summary:
       `Detected menu prices: ${prices.join(", ")} THB. Highest detected price is ${highestPrice} THB, which is ${formatPricePosition(pricePosition)} the likely ${likelyTier.label} item band (${itemBand[0]}-${itemBand[1]} THB) and meal band (${mealBand[0]}-${mealBand[1]} THB). ` +
+      comparisonSummary +
       `${likelyTier.notes} ${dishNotes ? `${dishNotes} ` : ""}` +
       `Reference tiers: ${allTierSummary}. Use venue/location confirmation before treating premium prices as fraud.`,
     confidence,
@@ -132,9 +173,12 @@ function getFoodPriceGrounding(request: RiskCheckRequest): GroundingSignal | nul
       normal_item_range_baht: itemBand,
       normal_meal_range_baht: mealBand,
       price_position: pricePosition,
+      menu_items: menuItems,
+      price_comparisons: priceComparisons,
       dish_notes: dishNotes ? [dishNotes] : [],
       matched_known_venue: venueMatch?.venue.name ?? null,
       tier_confidence: confidence,
+      grounding_source: "curated",
       reference_tiers: tiers.map((tier) => ({
         id: tier.id,
         label: tier.label,
@@ -143,6 +187,110 @@ function getFoodPriceGrounding(request: RiskCheckRequest): GroundingSignal | nul
       }))
     }
   };
+}
+
+function parseMenuItems(text: string, prices: number[], references: MenuItemReference[]): ParsedMenuItem[] {
+  const lower = text.toLowerCase();
+  const priceMatches = Array.from(text.matchAll(/(?:฿\s*)?(\d{1,3}(?:,\d{3})+|\d{2,6})\s*(?:baht|thb|บาท|฿)?/gi))
+    .map((match) => ({
+      value: Number(match[0].replace(/[^\d]/g, "")),
+      index: match.index ?? 0
+    }))
+    .filter((match) => prices.includes(match.value));
+
+  const items: ParsedMenuItem[] = [];
+  const usedPriceIndexes = new Set<number>();
+
+  const prioritizedReferences = [...references].sort((a, b) => longestKeywordLength(b) - longestKeywordLength(a));
+
+  for (const reference of prioritizedReferences) {
+    const referenceLabel = reference.label.toLowerCase();
+    if (items.some((item) => item.item_name.toLowerCase().includes(referenceLabel) && item.item_name.toLowerCase() !== referenceLabel)) {
+      continue;
+    }
+
+    const keywordMatches = reference.keywords
+      .map((keyword) => ({ keyword, index: lower.indexOf(keyword.toLowerCase()) }))
+      .filter((match) => match.index >= 0)
+      .sort((a, b) => a.index - b.index);
+
+    for (const keywordMatch of keywordMatches) {
+      const nearestPrice = priceMatches
+        .map((price, priceIndex) => ({ ...price, priceIndex, distance: Math.abs(price.index - keywordMatch.index) }))
+        .filter((price) => !usedPriceIndexes.has(price.priceIndex) && price.distance <= 90 && price.index >= keywordMatch.index)
+        .sort((a, b) => a.distance - b.distance)[0];
+
+      if (!nearestPrice) continue;
+
+      usedPriceIndexes.add(nearestPrice.priceIndex);
+      items.push({
+        item_name: reference.label,
+        listed_price_baht: nearestPrice.value,
+        detected_category: reference.category,
+        matched_reference_id: reference.id
+      });
+      break;
+    }
+  }
+
+  if (items.length > 0) return items.slice(0, 8);
+
+  for (const priceMatch of priceMatches) {
+    const priceIndex = priceMatches.indexOf(priceMatch);
+    if (usedPriceIndexes.has(priceIndex)) continue;
+    items.push({
+      item_name: `Menu item ${items.length + 1}`,
+      listed_price_baht: priceMatch.value,
+      detected_category: "unknown",
+      matched_reference_id: null
+    });
+  }
+
+  return items.slice(0, 8);
+}
+
+function longestKeywordLength(reference: MenuItemReference) {
+  return Math.max(...reference.keywords.map((keyword) => keyword.length));
+}
+
+function buildPriceComparisons(
+  items: ParsedMenuItem[],
+  tier: FoodTier,
+  references: MenuItemReference[],
+  sources: FoodSource[]
+) {
+  return items.map((item) => {
+    const reference = item.matched_reference_id
+      ? references.find((candidate) => candidate.id === item.matched_reference_id)
+      : null;
+    const itemRange = reference?.typical_baht_by_tier[tier.id];
+    const range: [number, number] = itemRange?.length === 2 ? [itemRange[0], itemRange[1]] : tier.typical_item_baht;
+    const result = getPricePosition(item.listed_price_baht, range);
+
+    return {
+      item_name: item.item_name,
+      listed_price_baht: item.listed_price_baht,
+      detected_category: item.detected_category,
+      normal_range_baht: range,
+      tier_id: tier.id,
+      tier_label: tier.label,
+      result,
+      confidence: reference ? "medium" : "low",
+      explanation:
+        result === "within"
+          ? `${item.item_name} is within the curated ${tier.label} range.`
+          : `${item.item_name} is ${formatPricePosition(result)} the curated ${tier.label} range; verify venue, menu display, and receipt before treating it as suspicious.`,
+      notes: reference?.notes ?? "No item-specific match; using the tier-level Bangkok food reference.",
+      citations: sources.slice(0, 3).map((source) => ({ title: source.title, url: source.url }))
+    };
+  });
+}
+
+function getWorstPricePosition(positions: PricePosition[]) {
+  if (positions.includes("far_above")) return "far_above";
+  if (positions.includes("above")) return "above";
+  if (positions.includes("within")) return "within";
+  return null;
 }
 
 function chooseFoodTier(text: string, tiers: FoodTier[], venueTierId?: string) {
@@ -252,14 +400,13 @@ function getLocationGrounding(request: RiskCheckRequest): GroundingSignal | null
   };
 }
 
-function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null {
+function getTaxiFareGrounding(request: RiskCheckRequest, routeEstimate: RouteEstimate | null): GroundingSignal | null {
   const combined = combineText(request);
   if (!combined.includes("taxi")) return null;
 
   const amountMatch = combined.match(/(?:฿\s*|)(\d{2,5})\s*(?:thb|baht|บาท|฿)/i);
   const quotedFareBaht = amountMatch ? Number(amountMatch[1]) : null;
   const bangkokReference = taxiFareReference.bangkok;
-  const routeEstimate = estimateBangkokRoute(request);
   const matchedRoute = bangkokReference.known_city_routes.find((route) => {
     const hasOrigin = route.origin_keywords.some((keyword) => combined.includes(keyword));
     const hasDestination = route.destination_keywords.some((keyword) => combined.includes(keyword));
@@ -268,6 +415,7 @@ function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null
 
   const suspiciousFareSignals = [
     "meter broken",
+    "meter is broken",
     "meter not working",
     "no meter",
     "refuse meter",
@@ -296,8 +444,12 @@ function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null
       metadata: {
         quoted_fare_baht: quotedFareBaht,
         baseline_range_baht: typicalRange,
+        taxi_meter_estimate_baht: typicalRange,
+        route_distance_range_km: matchedRoute.approx_distance_km,
+        route_distance_km: averageRange(matchedRoute.approx_distance_km as [number, number]),
         fare_position: getFarePosition(quotedFareBaht, typicalRange),
-        suspicious_fare_signals: suspiciousFareSignals
+        suspicious_fare_signals: suspiciousFareSignals,
+        grounding_source: "curated"
       }
     };
   }
@@ -314,7 +466,12 @@ function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null
       metadata: {
         quoted_fare_baht: quotedFareBaht,
         baseline_range_baht: [estimateBaht.low, estimateBaht.high],
+        taxi_meter_estimate_baht: [estimateBaht.low, estimateBaht.high],
         route_distance_km: routeEstimate.estimatedRoadKm,
+        route_origin: routeEstimate.origin.name,
+        route_destination: routeEstimate.destination.name,
+        route_travel_time_minutes: routeEstimate.travelTimeMinutes ?? null,
+        grounding_source: routeEstimate.source,
         fare_position: getFarePosition(quotedFareBaht, [estimateBaht.low, estimateBaht.high]),
         suspicious_fare_signals: suspiciousFareSignals
       }
@@ -329,7 +486,8 @@ function getTaxiFareGrounding(request: RiskCheckRequest): GroundingSignal | null
     citations: [bangkokTaxiCitation],
     metadata: {
       quoted_fare_baht: quotedFareBaht,
-      suspicious_fare_signals: suspiciousFareSignals
+      suspicious_fare_signals: suspiciousFareSignals,
+      grounding_source: "fallback"
     }
   };
 }
@@ -339,6 +497,148 @@ function getFarePosition(quotedFareBaht: number | null, baselineRange: [number, 
   if (quotedFareBaht <= baselineRange[1]) return "within_or_below";
   if (quotedFareBaht <= baselineRange[1] * 1.5) return "above";
   return "far_above";
+}
+
+function getOperatorPaymentGrounding(request: RiskCheckRequest): GroundingSignal | null {
+  const combined = combineText(request);
+  if (!hasAny(combined, ["tour", "operator", "booking", "agent", "line", "package", "trip"]) || !hasAny(combined, ["payment", "pay", "deposit", "transfer", "bank account", "license"])) {
+    return null;
+  }
+
+  const signals = [
+    signalIf("Full advance payment requested", combined, ["full payment", "deposit now", "pay now", "prepay", "advance payment"]),
+    signalIf("Payment account appears personal", combined, ["personal account", "personal bank", "individual account", "bank transfer"]),
+    signalIf("Missing operator or TAT license details", combined, ["no license", "missing license", "will not show a license", "no tat", "license not shown"]),
+    signalIf("Informal LINE-only sales channel", combined, ["line only", "line tour", "line seller", "line agent"]),
+    signalIf("Time pressure or limited-time payment push", combined, ["limited time", "today only", "urgent", "must pay today"])
+  ].filter((signal): signal is string => Boolean(signal));
+
+  if (signals.length === 0) return null;
+
+  return {
+    tool: "operator_payment_reference",
+    title: "Tour/operator payment grounding",
+    summary: `${signals.join("; ")}. For tourist bookings, the safer path is to verify operator identity, TAT license details, written cancellation terms, and receipt before paying.`,
+    confidence: signals.length >= 3 ? "high" : "medium",
+    metadata: {
+      interpreted_signals: signals,
+      has_full_advance_payment: signals.includes("Full advance payment requested"),
+      has_personal_account: signals.includes("Payment account appears personal"),
+      has_missing_license: signals.includes("Missing operator or TAT license details"),
+      grounding_source: "curated"
+    }
+  };
+}
+
+function getQrPaymentGrounding(request: RiskCheckRequest): GroundingSignal | null {
+  const combined = combineText(request);
+  if (!hasAny(combined, ["qr", "scan to pay", "account name", "payment account", "ชื่อบัญชี"])) return null;
+
+  const signals = [
+    signalIf("Payment account appears personal or mismatched", combined, ["different name", "personal name", "personal account", "account name is a different", "does not match"]),
+    signalIf("QR payment requested before identity is verified", combined, ["scan to pay", "pay now", "qr payment"]),
+    signalIf("Business identity is missing or unclear", combined, ["business name is not shown", "no business name", "not shown", "missing business"])
+  ].filter((signal): signal is string => Boolean(signal));
+
+  if (signals.length === 0) return null;
+
+  return {
+    tool: "qr_payment_reference",
+    title: "QR/payment identity grounding",
+    summary: `${signals.join("; ")}. Account-name mismatch increases refund and dispute risk, especially before a receipt or business identity is confirmed.`,
+    confidence: signals.some((signal) => signal.includes("mismatched")) ? "high" : "medium",
+    metadata: {
+      interpreted_signals: signals,
+      has_account_mismatch: signals.includes("Payment account appears personal or mismatched"),
+      grounding_source: "curated"
+    }
+  };
+}
+
+function getRentalDocumentGrounding(request: RiskCheckRequest): GroundingSignal | null {
+  const combined = combineText(request);
+  if (!hasAny(combined, ["rental", "rent", "motorbike", "scooter", "jet ski", "vehicle", "bike"]) || !hasAny(combined, ["passport", "deposit", "contract"])) {
+    return null;
+  }
+
+  const signals = [
+    signalIf("Original passport requested as deposit", combined, ["keep my original passport", "keep passport", "hold passport", "original passport", "leave your passport", "passport deposit"]),
+    signalIf("Deposit or contract terms need written confirmation", combined, ["deposit", "contract", "terms", "policy"]),
+    signalIf("Vehicle rental context creates document leverage risk", combined, ["motorbike", "scooter", "jet ski", "vehicle", "bike"])
+  ].filter((signal): signal is string => Boolean(signal));
+
+  if (signals.length === 0) return null;
+
+  return {
+    tool: "rental_document_reference",
+    title: "Rental/passport document grounding",
+    summary: `${signals.join("; ")}. A safer alternative is a passport copy plus cash/card deposit, written terms, receipt, and pre-use vehicle photos.`,
+    confidence: signals.includes("Original passport requested as deposit") ? "high" : "medium",
+    metadata: {
+      interpreted_signals: signals,
+      has_original_passport_request: signals.includes("Original passport requested as deposit"),
+      grounding_source: "curated"
+    }
+  };
+}
+
+function getDamageClaimGrounding(request: RiskCheckRequest): GroundingSignal | null {
+  const combined = combineText(request);
+  if (!hasAny(combined, ["scratch", "damage", "claim", "repair", "jet ski", "motorbike"]) || !hasAny(combined, ["cash", "receipt", "police", "insurer", "20,000", "20000", "pay"])) {
+    return null;
+  }
+
+  const signals = [
+    signalIf("Large cash damage demand without neutral inspection", combined, ["20,000", "20000", "large cash", "pay cash now", "cash now"]),
+    signalIf("No receipt or written damage estimate offered", combined, ["no receipt", "without receipt", "no written", "no invoice"]),
+    signalIf("Pressure to avoid police, insurer, or neutral process", combined, ["no police", "no insurer", "do not call police", "without police"]),
+    signalIf("Rental damage claim under pressure", combined, ["scratch", "damage", "claim"])
+  ].filter((signal): signal is string => Boolean(signal));
+
+  if (signals.length === 0) return null;
+
+  return {
+    tool: "damage_claim_reference",
+    title: "Rental damage pressure grounding",
+    summary: `${signals.join("; ")}. Damage disputes should be documented with photos, written estimates, receipts, and neutral help instead of immediate cash pressure.`,
+    confidence: signals.length >= 3 ? "high" : "medium",
+    metadata: {
+      interpreted_signals: signals,
+      has_large_cash_demand: signals.includes("Large cash damage demand without neutral inspection"),
+      has_no_receipt: signals.includes("No receipt or written damage estimate offered"),
+      grounding_source: "curated"
+    }
+  };
+}
+
+function getJobLureGrounding(request: RiskCheckRequest): GroundingSignal | null {
+  const combined = combineText(request);
+  if (!hasAny(combined, ["casting", "modeling", "modelling", "photoshoot", "job offer", "recruiter", "wechat"]) && !hasAny(combined, ["mae sot", "border", "myanmar"])) {
+    return null;
+  }
+
+  const signals = [
+    signalIf("Job or casting offer from informal channel", combined, ["casting", "modeling", "modelling", "paid photoshoot", "job offer", "recruiter", "wechat"]),
+    signalIf("Controlled pickup or free transport offered", combined, ["airport pickup", "free transport", "driver will pick", "driver said", "pickup"]),
+    signalIf("Travel toward Mae Sot, Myanmar, or border area", combined, ["mae sot", "myanmar", "border", "poipet"]),
+    signalIf("Secrecy or isolation instruction", combined, ["do not tell", "don't tell", "keep secret", "not to tell my hotel", "change hotel"])
+  ].filter((signal): signal is string => Boolean(signal));
+
+  if (signals.length === 0) return null;
+
+  return {
+    tool: "job_lure_reference",
+    title: "Fake job/casting lure grounding",
+    summary: `${signals.join("; ")}. The combination of recruitment, pickup/control, secrecy, and border travel is treated as a critical safety pattern.`,
+    confidence: signals.length >= 3 ? "high" : "medium",
+    metadata: {
+      interpreted_signals: signals,
+      has_controlled_pickup: signals.includes("Controlled pickup or free transport offered"),
+      has_border_travel: signals.includes("Travel toward Mae Sot, Myanmar, or border area"),
+      has_secrecy_instruction: signals.includes("Secrecy or isolation instruction"),
+      grounding_source: "curated"
+    }
+  };
 }
 
 function getVenueGrounding(request: RiskCheckRequest): GroundingSignal | null {
@@ -366,18 +666,32 @@ function getVenueGrounding(request: RiskCheckRequest): GroundingSignal | null {
   };
 }
 
-function getRouteDistanceGrounding(request: RiskCheckRequest): GroundingSignal | null {
+function getRouteDistanceGrounding(request: RiskCheckRequest, routeEstimate: RouteEstimate | null): GroundingSignal | null {
   const combined = combineText(request);
   if (!combined.includes("taxi")) return null;
 
-  const routeEstimate = estimateBangkokRoute(request);
   if (!routeEstimate) return null;
 
   return {
     tool: "route_distance",
     title: `${routeEstimate.origin.name} to ${routeEstimate.destination.name}`,
-    summary: `Approximate straight-line distance is ${routeEstimate.straightLineKm.toFixed(1)} km. Road-adjusted demo estimate is ${routeEstimate.estimatedRoadKm.toFixed(1)} km. This is a grounding estimate, not live navigation.`,
-    confidence: "medium"
+    summary:
+      routeEstimate.source === "azure_maps"
+        ? `Azure Maps route distance is ${routeEstimate.estimatedRoadKm.toFixed(1)} km${routeEstimate.travelTimeMinutes ? ` with estimated travel time around ${routeEstimate.travelTimeMinutes} minutes` : ""}.`
+        : `Approximate straight-line distance is ${routeEstimate.straightLineKm.toFixed(1)} km. Road-adjusted demo estimate is ${routeEstimate.estimatedRoadKm.toFixed(1)} km. This is a grounding estimate, not live navigation.`,
+    confidence: routeEstimate.source === "azure_maps" ? "high" : "medium",
+    citations:
+      routeEstimate.source === "azure_maps"
+        ? [{ title: "Microsoft Learn: Azure Maps Get Route Directions", url: "https://learn.microsoft.com/en-us/rest/api/maps/route/get-route-directions" }]
+        : undefined,
+    metadata: {
+      route_origin: routeEstimate.origin.name,
+      route_destination: routeEstimate.destination.name,
+      straight_line_distance_km: routeEstimate.straightLineKm,
+      route_distance_km: routeEstimate.estimatedRoadKm,
+      route_travel_time_minutes: routeEstimate.travelTimeMinutes ?? null,
+      grounding_source: routeEstimate.source
+    }
   };
 }
 
@@ -431,7 +745,7 @@ function combineText(request: RiskCheckRequest) {
   return `${request.message} ${request.extractedText ?? ""} ${request.evidenceText ?? ""} ${request.city}`.toLowerCase();
 }
 
-function estimateBangkokRoute(request: RiskCheckRequest) {
+async function estimateBangkokRoute(request: RiskCheckRequest): Promise<RouteEstimate | null> {
   if (request.city.toLowerCase() !== "bangkok") return null;
 
   const combined = combineText(request);
@@ -441,14 +755,54 @@ function estimateBangkokRoute(request: RiskCheckRequest) {
 
   const [origin, destination] = matchedPlaces;
   const straightLineKm = haversineKm(origin.lat, origin.lng, destination.lat, destination.lng);
-  const estimatedRoadKm = straightLineKm * 1.35;
+  const azureRoute = await getAzureMapsRoute(origin, destination, straightLineKm);
+  if (azureRoute) return azureRoute;
 
   return {
     origin,
     destination,
     straightLineKm,
-    estimatedRoadKm
+    estimatedRoadKm: straightLineKm * 1.35,
+    source: "curated"
   };
+}
+
+async function getAzureMapsRoute(origin: Place, destination: Place, straightLineKm: number): Promise<RouteEstimate | null> {
+  const key = process.env.AZURE_MAPS_KEY;
+  if (!key) return null;
+
+  const timeoutMs = Number(process.env.AZURE_MAPS_TIMEOUT_MS || 5000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const url = new URL("https://atlas.microsoft.com/route/directions/json");
+    url.searchParams.set("api-version", "1.0");
+    url.searchParams.set("query", `${origin.lat},${origin.lng}:${destination.lat},${destination.lng}`);
+    url.searchParams.set("travelMode", "taxi");
+    url.searchParams.set("subscription-key", key);
+
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const summary = data?.routes?.[0]?.summary;
+    const meters = typeof summary?.lengthInMeters === "number" ? summary.lengthInMeters : null;
+    if (!meters) return null;
+
+    return {
+      origin,
+      destination,
+      straightLineKm,
+      estimatedRoadKm: meters / 1000,
+      travelTimeMinutes:
+        typeof summary.travelTimeInSeconds === "number" ? Math.round(summary.travelTimeInSeconds / 60) : undefined,
+      source: "azure_maps"
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -466,11 +820,19 @@ function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) 
 }
 
 function hasMenuContext(text: string) {
-  return /menu|เมนู|food|dish|crab|omelette|noodle|rice|pad thai|ผัด|อาหาร|ราคา|price/i.test(text);
+  return /menu|เมนู|restaurant|ร้าน|food|dish|crab|omelette|noodle|rice|pad thai|ผัด|อาหาร/i.test(text);
 }
 
 function hasPriceMention(text: string) {
-  return /(?:฿\s*)?\d{2,6}(?:,\d{3})?\s*(?:baht|thb|บาท|฿)/i.test(text);
+  return /(?:฿\s*)?(?:\d{1,3}(?:,\d{3})+|\d{2,6})\s*(?:baht|thb|บาท|฿)/i.test(text);
+}
+
+function hasAny(text: string, phrases: string[]) {
+  return phrases.some((phrase) => text.includes(phrase));
+}
+
+function signalIf(label: string, text: string, phrases: string[]) {
+  return hasAny(text, phrases) ? label : null;
 }
 
 function toRadians(value: number) {
@@ -483,6 +845,10 @@ function estimateMeterFare(distanceKm: number, firstKmBaht: number, nextKmBaht: 
     low: Math.round(base),
     high: Math.round(base + 40)
   };
+}
+
+function averageRange(range: [number, number]) {
+  return Number(((range[0] + range[1]) / 2).toFixed(1));
 }
 
 function parseIncidentDate(value?: string) {

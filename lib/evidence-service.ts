@@ -2,8 +2,8 @@ import { extractEvidenceHints } from "@/lib/evidence-hints";
 import type { EvidenceExtractResult } from "@/lib/types";
 
 export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtractResult> {
-  const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  const key = process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
+  const endpoint = getDocumentIntelligenceEndpoint();
+  const key = getDocumentIntelligenceKey();
   const timeoutMs = Number(process.env.AZURE_DOCUMENT_INTELLIGENCE_TIMEOUT_MS || 10000);
 
   if (!endpoint || !key) {
@@ -62,6 +62,49 @@ export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtra
   } catch {
     return fallbackEvidence(file.name, "Azure OCR failed; ask the user to paste key text if needed.");
   }
+}
+
+function getDocumentIntelligenceEndpoint() {
+  return (
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT ||
+    process.env.AZURE_AI_SERVICES_ENDPOINT ||
+    process.env.AZURE_COGNITIVE_SERVICES_ENDPOINT ||
+    inferCognitiveServicesEndpoint(process.env.AZURE_OPENAI_ENDPOINT)
+  )?.replace(/\/$/, "");
+}
+
+function getDocumentIntelligenceKey() {
+  return (
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY ||
+    process.env.AZURE_AI_SERVICES_API_KEY ||
+    process.env.AZURE_COGNITIVE_SERVICES_KEY ||
+    process.env.AZURE_OPENAI_API_KEY
+  );
+}
+
+function inferCognitiveServicesEndpoint(endpoint?: string) {
+  if (!endpoint) return undefined;
+
+  try {
+    const url = new URL(endpoint);
+    if (url.hostname.endsWith(".cognitiveservices.azure.com")) {
+      return url.origin;
+    }
+
+    if (url.hostname.endsWith(".services.ai.azure.com")) {
+      const resourceName = url.hostname.replace(".services.ai.azure.com", "");
+      return `https://${resourceName}.cognitiveservices.azure.com`;
+    }
+
+    if (url.hostname.endsWith(".openai.azure.com")) {
+      const resourceName = url.hostname.replace(".openai.azure.com", "");
+      return `https://${resourceName}.cognitiveservices.azure.com`;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {

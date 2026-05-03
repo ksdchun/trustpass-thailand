@@ -20,7 +20,19 @@ export type UserLocation = {
 };
 
 export type GroundingSignal = {
-  tool: "location" | "route_distance" | "fare_reference" | "food_price_reference" | "event_context" | "venue_reference" | "web_grounding";
+  tool:
+    | "location"
+    | "route_distance"
+    | "fare_reference"
+    | "food_price_reference"
+    | "operator_payment_reference"
+    | "qr_payment_reference"
+    | "rental_document_reference"
+    | "damage_claim_reference"
+    | "job_lure_reference"
+    | "event_context"
+    | "venue_reference"
+    | "web_grounding";
   title: string;
   summary: string;
   confidence: "low" | "medium" | "high";
@@ -107,6 +119,7 @@ export type SituationAnalyzeRequest = {
 export type SituationAnalyzeResponse =
   | {
       status: "needs_clarification";
+      clarification_key?: string;
       question: string;
       reason: string;
       suggested_answers: string[];

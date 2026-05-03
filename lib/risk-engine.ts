@@ -49,14 +49,14 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
       ],
       thai_phrase: defaultThaiPhrase,
       evidence_to_save: defaultEvidence,
-      contact_recommendation: "Ask your hotel front desk to help verify the service. Contact Tourist Police 1155 if pressured or threatened.",
+      contact_recommendation: "No escalation is recommended from the current information. Confirm basic details and ask hotel staff only if something feels unclear or changes.",
       incident_report_summary: buildReport("No strong scam pattern detected", "Low", request.city, []),
       source: "local-demo"
     };
   }
 
   const strongest = matches[0].pattern;
-  const allSignals = Array.from(new Set(matches.flatMap((match) => match.hits))).slice(0, 8);
+  const allSignals = Array.from(new Set(matches.flatMap((match) => displaySignalsForMatch(match.pattern.id, match.hits, combined)))).slice(0, 8);
   const actionSet = Array.from(new Set(matches.flatMap((match) => match.pattern.actions))).slice(0, 5);
 
   return {
@@ -141,6 +141,70 @@ function hasTaxiOrRideContext(text: string) {
   return /\btaxi\b|cab|meter|fare|grab|bolt|tuk-?tuk|driver.*(?:take|ride|drive)|(?:ride|drive).*from/i.test(text);
 }
 
+function displaySignalsForMatch(patternId: string, hits: string[], text: string) {
+  const hasHit = (...phrases: string[]) => phrases.some((phrase) => hits.includes(phrase) || text.includes(phrase));
+
+  if (patternId === "taxi_meter_refusal") {
+    return [
+      hasHit("meter broken", "meter is broken", "meter not working", "no meter") ? "Meter refusal or meter unavailable" : null,
+      hasHit("fixed fare", "800 baht", "overcharge") ? "Fixed fare quote needs route/fare verification" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "personal_transfer_tour") {
+    return [
+      hasHit("full payment", "deposit now") ? "Full advance payment requested" : null,
+      hasHit("personal account", "bank transfer") ? "Payment account appears personal" : null,
+      hasHit("no license") ? "Missing operator or TAT license details" : null,
+      hasHit("line only") ? "Informal LINE-only sales channel" : null,
+      hasHit("limited time") ? "Time pressure or limited-time payment push" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "qr_payment_mismatch") {
+    return [
+      hasHit("different name", "personal name", "personal account") ? "Payment account appears personal or mismatched" : null,
+      hasHit("qr", "qr payment", "scan to pay") ? "QR payment requested before identity is verified" : null,
+      hasHit("account name") ? "Account name needs business verification" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "passport_retention") {
+    return [
+      hasHit("keep passport", "hold passport", "original passport", "passport deposit", "leave your passport") ? "Original passport requested as deposit" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "tuktuk_detour_shop") {
+    return [
+      hasHit("temple is closed") ? "Attraction closure claim redirects the route" : null,
+      hasHit("gem shop", "tailor shop", "government shop", "free stop", "detour") ? "Shop detour or commission stop suggested" : null,
+      hasHit("special price") ? "Special-price pressure used to change plan" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "rental_damage_cash_pressure") {
+    return [
+      hasHit("20,000 baht", "pay cash now") ? "Large cash damage demand without neutral inspection" : null,
+      hasHit("no receipt") ? "No receipt or written damage estimate offered" : null,
+      hasHit("no police") ? "Pressure to avoid police, insurer, or neutral process" : null,
+      hasHit("scratch", "damage", "jet ski") ? "Rental damage claim under pressure" : null,
+      hasHit("keep passport") ? "Passport leverage present in rental dispute" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  if (patternId === "fake_job_casting_lure") {
+    return [
+      hasHit("casting", "modeling", "modelling", "paid photoshoot", "job offer") ? "Job or casting offer from informal channel" : null,
+      hasHit("airport pickup", "free transport", "driver will pick you up") ? "Controlled pickup or free transport offered" : null,
+      hasHit("mae sot", "border", "myanmar") ? "Travel toward Mae Sot, Myanmar, or border area" : null,
+      hasHit("do not tell", "keep secret", "change hotel") ? "Secrecy or isolation instruction" : null
+    ].filter((signal): signal is string => Boolean(signal));
+  }
+
+  return hits;
+}
+
 function arrayOr(value: unknown, fallback: string[]) {
   return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : fallback;
 }
@@ -174,15 +238,15 @@ function evidenceFor(category: string) {
 
 function contactFor(level: RiskLevel) {
   if (level === "Emergency") {
-    return "Stop immediately. Contact hotel staff, Tourist Police 1155, or your embassy/consulate from a safe public place.";
+    return "Stop immediately and move to a safe public place. Contact Tourist Police 1155, hotel security, emergency medical help, or your embassy/consulate as relevant.";
   }
   if (level === "High") {
-    return "Do not proceed until verified. Ask hotel staff or Tourist Police 1155 for help if pressured.";
+    return "Do not proceed until verified. Ask hotel staff, the official platform, or the relevant company for help first; contact Tourist Police 1155 if pressured, threatened, blocked, or already defrauded.";
   }
   if (level === "Caution") {
-    return "Verify first through hotel staff or a trusted platform. Contact Tourist Police 1155 if the situation escalates.";
+    return "Verify calmly first through staff, hotel front desk, or a trusted platform. Tourist Police 1155 is only needed if pressure, threats, refusal to let you leave, or a major dispute appears.";
   }
-  return "Proceed carefully and save receipts. Ask hotel staff if you want a second opinion.";
+  return "No escalation recommended. Proceed normally, confirm the details, and keep receipts only if useful.";
 }
 
 function buildReport(category: string, level: RiskLevel, city: string, signals: string[]) {

@@ -3,15 +3,33 @@ import { extractEvidenceHints } from "@/lib/evidence-hints";
 import { buildGroundingContext, getKnownVenueMatch } from "@/lib/grounding-tools";
 import { areTopicsCompatible, classifyTextRelevance, isGenericCheckMessage, topicLabel } from "@/lib/relevance";
 import { buildPrompt, classifyWithLocalRules, normalizeRiskResult } from "@/lib/risk-engine";
-import type { EvidenceTopic, RiskCheckRequest, RiskCheckResult, SituationAnalyzeRequest, SituationAnalyzeResponse } from "@/lib/types";
+import type { EvidenceRelevanceResult, EvidenceTopic, RiskCheckRequest, RiskCheckResult, SituationAnalyzeRequest, SituationAnalyzeResponse } from "@/lib/types";
 
 type AnalyzeOptions = {
   allowClarification: boolean;
 };
 
+type QuestionIntent = {
+  scope: "tourist_trust" | "unrelated" | "unclear";
+  topic: EvidenceTopic;
+  confidence: "low" | "medium" | "high";
+  reason: string;
+};
+
+const evidenceTopics: EvidenceTopic[] = [
+  "transport",
+  "food_menu",
+  "tour_payment",
+  "qr_payment",
+  "rental_document",
+  "damage_claim",
+  "job_lure",
+  "unknown"
+];
+
 export async function analyzeSituation(input: SituationAnalyzeRequest, options: AnalyzeOptions): Promise<SituationAnalyzeResponse> {
   const payload = applyEvidencePolicy(normalizeAnalyzeRequest(input));
-  const scopeResponse = getScopeResponse(payload);
+  const scopeResponse = await getScopeResponse(payload);
   if (scopeResponse) return scopeResponse;
 
   const grounding = await buildGroundingContext(payload);
@@ -233,6 +251,135 @@ function getOpenAICompatibleBaseUrl(endpoint: string) {
   return null;
 }
 
+async function classifyQuestionIntentWithAzure(
+  message: string,
+  evidenceRelevance?: EvidenceRelevanceResult,
+  evidenceText?: string
+): Promise<QuestionIntent | null> {
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2024-10-21";
+  const timeoutMs = Number(process.env.AZURE_OPENAI_TIMEOUT_MS || 12000);
+
+  if (!endpoint || !apiKey || !deployment) return null;
+
+  const normalizedEndpoint = endpoint.replace(/\/$/, "");
+  const openAICompatibleBaseUrl = getOpenAICompatibleBaseUrl(normalizedEndpoint);
+  const evidencePreview = (evidenceText || "").replace(/\s+/g, " ").trim().slice(0, 900);
+  const messages: Array<{ role: "system" | "user"; content: string }> = [
+    {
+      role: "system",
+      content:
+        "You are a tiny intent router for TrustPass Thailand. Classify only whether a short user question belongs to tourist scam, fraud, payment, transport, rental, food-price, or safety-risk checking. Do not score risk. Return strict JSON only."
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        allowed_topics: evidenceTopics,
+        output_shape: {
+          scope: "tourist_trust | unrelated | unclear",
+          topic: evidenceTopics.join(" | "),
+          confidence: "low | medium | high",
+          reason: "short sentence"
+        },
+        rules: [
+          "If the message is a generic question such as 'Is this normal?', 'Should I pay?', or 'What do you think about this?' and the evidence topic is relevant, classify as tourist_trust.",
+          "Use the evidence topic as context, but do not invent facts not present in the message or evidence preview.",
+          "Return unrelated for casual travel/food diary messages with no request to check safety, price, payment, rental, route, or fraud.",
+          "Return unknown topic when the message is generic and the evidence topic should drive analysis."
+        ],
+        message,
+        evidence_topic: evidenceRelevance?.topic || "unknown",
+        evidence_relevance: evidenceRelevance?.relevance || "weak",
+        evidence_reason: evidenceRelevance?.reason || null,
+        evidence_preview: evidencePreview || null
+      })
+    }
+  ];
+
+  try {
+    let content: string | undefined | null;
+
+    if (openAICompatibleBaseUrl) {
+      const client = new OpenAI({
+        baseURL: openAICompatibleBaseUrl,
+        apiKey,
+        timeout: timeoutMs
+      });
+
+      const completion = await client.chat.completions.create({
+        model: deployment,
+        messages,
+        temperature: 0,
+        max_tokens: 160,
+        response_format: { type: "json_object" }
+      });
+
+      content = completion.choices[0]?.message?.content;
+    } else {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(
+          `${normalizedEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "api-key": apiKey
+            },
+            body: JSON.stringify({
+              messages,
+              temperature: 0,
+              max_tokens: 160,
+              response_format: { type: "json_object" }
+            }),
+            signal: controller.signal
+          }
+        );
+
+        if (!response.ok) return null;
+        const data = await response.json();
+        content = data?.choices?.[0]?.message?.content;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    return normalizeQuestionIntent(content ? JSON.parse(content) : null);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeQuestionIntent(value: unknown): QuestionIntent | null {
+  if (!value || typeof value !== "object") return null;
+
+  const raw = value as Record<string, unknown>;
+  const scope = raw.scope === "tourist_trust" || raw.scope === "unrelated" || raw.scope === "unclear" ? raw.scope : "unclear";
+  const topic = typeof raw.topic === "string" && evidenceTopics.includes(raw.topic as EvidenceTopic) ? raw.topic as EvidenceTopic : "unknown";
+  const confidence = raw.confidence === "high" || raw.confidence === "medium" || raw.confidence === "low" ? raw.confidence : "low";
+  const reason = typeof raw.reason === "string" ? raw.reason.slice(0, 180) : "Azure OpenAI intent routing.";
+
+  return { scope, topic, confidence, reason };
+}
+
+function shouldUseQuestionIntentRouter(message: string, hasRelevantEvidence: boolean) {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  const lower = normalized.toLowerCase();
+  if (!normalized || normalized.length > 220) return false;
+  if (/^(i ate|i had|i went|i visited|i like|i love|yesterday i ate|today i ate)\b/.test(lower) && !/[?]/.test(lower)) return false;
+
+  if (hasRelevantEvidence) {
+    return /[?]/.test(normalized) ||
+      /\b(check|review|look at|analy[sz]e|normal|safe|legit|real|suspicious|scam|trust|okay|ok|pay|price|cost|fare|charge|passport|deposit|rental|damage|job|tour|qr|account|transfer)\b/i.test(normalized);
+  }
+
+  return /[?]/.test(normalized) &&
+    /\b(normal|safe|legit|real|suspicious|scam|trust|okay|ok|pay|price|cost|fare|charge|passport|deposit|rental|damage|job|tour|qr|account|transfer)\b/i.test(normalized);
+}
+
 function toCompletedResponse(result: RiskCheckResult): SituationAnalyzeResponse {
   return {
     status: "completed",
@@ -258,6 +405,9 @@ function applyGroundingRiskAdjustments(
   const groundedResult = applyGroundedSignalLabels(result, grounding);
   const taxiFareRiskResult = getTaxiFareRiskResult(groundedResult, grounding, request);
   if (taxiFareRiskResult) return taxiFareRiskResult;
+
+  const rentalDocumentRiskResult = getRentalDocumentRiskResult(groundedResult, grounding, request);
+  if (rentalDocumentRiskResult) return rentalDocumentRiskResult;
 
   const damageClaimRiskResult = getDamageClaimRiskResult(groundedResult, grounding, request);
   if (damageClaimRiskResult) return damageClaimRiskResult;
@@ -430,6 +580,46 @@ function getDamageClaimRiskResult(
   };
 }
 
+function getRentalDocumentRiskResult(
+  result: RiskCheckResult,
+  grounding: NonNullable<RiskCheckResult["grounding"]>,
+  request: RiskCheckRequest
+): RiskCheckResult | null {
+  const rentalSignal = grounding.find((signal) => signal.tool === "rental_document_reference");
+  if (!rentalSignal || rentalSignal.metadata?.has_original_passport_request !== true) return null;
+
+  const interpretedSignals = Array.isArray(rentalSignal.metadata?.interpreted_signals)
+    ? rentalSignal.metadata.interpreted_signals.filter((signal): signal is string => typeof signal === "string")
+    : [];
+  const signals = Array.from(new Set([
+    ...interpretedSignals,
+    "Original passport requested as deposit"
+  ])).slice(0, 8);
+
+  return {
+    ...result,
+    risk_level: "High",
+    category: "Rental passport retention risk",
+    suspicious_signals: signals,
+    why_it_matters:
+      "A tourist's original passport is a critical identity document. If a rental operator keeps it as a deposit, the tourist can lose leverage during disputes or be pressured to pay unclear fees before the passport is returned.",
+    safe_next_steps: [
+      "Do not leave your original passport as a deposit.",
+      "Offer a passport copy plus a written cash/card deposit receipt instead.",
+      "Photograph the vehicle condition, contract, shop name, and deposit terms before using the rental.",
+      "If the passport is already being held and the shop refuses to return it, ask hotel staff, platform support, embassy, or Tourist Police 1155 for help."
+    ],
+    thai_phrase: "ขอใช้สำเนาพาสปอร์ตแทนตัวจริง และขอใบเสร็จเงินมัดจำได้ไหมครับ/ค่ะ",
+    evidence_to_save: ["Rental contract", "Passport/deposit clause", "Shop name and location", "Deposit receipt", "Before-use vehicle photos"],
+    contact_recommendation:
+      "Avoid handing over the original passport. If it is already being withheld or used as leverage, ask hotel staff, platform support, embassy, or Tourist Police 1155 for help.",
+    incident_report_summary: {
+      english: `TrustPass rental document check in ${request.city}: High risk because an original passport is requested or held as a rental deposit.`,
+      thai: `รายงาน TrustPass ในพื้นที่ ${request.city}: ระดับ High เนื่องจากมีการขอหรือถือพาสปอร์ตตัวจริงเป็นหลักประกันการเช่า`
+    }
+  };
+}
+
 function getFoodPriceRiskResult(
   groundedResult: RiskCheckResult,
   grounding: NonNullable<RiskCheckResult["grounding"]>,
@@ -525,14 +715,29 @@ function applyEvidencePolicy(request: RiskCheckRequest): RiskCheckRequest {
   };
 }
 
-function getScopeResponse(request: RiskCheckRequest): SituationAnalyzeResponse | null {
+async function getScopeResponse(request: RiskCheckRequest): Promise<SituationAnalyzeResponse | null> {
   const messageRelevance = classifyTextRelevance(request.message, "message");
   const evidenceText = request.evidenceText || "";
   const evidenceRelevance = request.evidenceRelevance || (evidenceText ? classifyTextRelevance(evidenceText, "evidence") : undefined);
   const hasRelevantEvidence = Boolean(evidenceRelevance?.usable_as_case_evidence && evidenceText.trim());
   const genericMessage = isGenericCheckMessage(request.message);
+  const intent = !messageRelevance.usable_as_case_evidence && shouldUseQuestionIntentRouter(request.message, hasRelevantEvidence)
+    ? await classifyQuestionIntentWithAzure(request.message, evidenceRelevance, evidenceText)
+    : null;
+  const routedMessageTopic = intent?.scope === "tourist_trust" && intent.confidence !== "low" ? intent.topic : "unknown";
+  const routedAsGenericTrustQuestion = intent?.scope === "tourist_trust" && intent.confidence !== "low" && routedMessageTopic === "unknown";
+  const routedAsSpecificTrustQuestion = intent?.scope === "tourist_trust" && intent.confidence !== "low" && routedMessageTopic !== "unknown";
 
-  if (genericMessage && hasRelevantEvidence) return null;
+  if ((genericMessage || routedAsGenericTrustQuestion) && hasRelevantEvidence) return null;
+
+  if (routedAsSpecificTrustQuestion && hasRelevantEvidence && evidenceRelevance) {
+    if (areTopicsCompatible(routedMessageTopic, evidenceRelevance.topic)) return null;
+    return evidenceMismatchResponse(
+      routedMessageTopic,
+      evidenceRelevance,
+      `Your question appears to be about ${topicLabel(routedMessageTopic)}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`
+    );
+  }
 
   if (!messageRelevance.usable_as_case_evidence && !hasRelevantEvidence) {
     return {

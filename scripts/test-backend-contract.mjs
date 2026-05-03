@@ -66,6 +66,62 @@ const cases = [
     expectEvidenceTopic: "food_menu"
   },
   {
+    name: "Generic price question uses uploaded menu evidence",
+    body: {
+      message: "Is the price here normal?",
+      city: "Bangkok",
+      language: "English",
+      incidentDateIso: "2026-05-02T05:00:00.000Z",
+      evidenceText: "Crab omelette 1500 baht. Drunken noodles seafood 800 baht. Menu photo with no restaurant name visible."
+    },
+    expectStatus: "needs_clarification",
+    expectClarificationKey: "venue_location",
+    expectGroundingTool: "food_price_reference",
+    rejectSuggestedAnswers: ["Use my typed situation", "Use the uploaded evidence", "I will upload the correct evidence"]
+  },
+  {
+    name: "Ambiguous question routes to tour evidence",
+    body: {
+      message: "What do you think about this?",
+      city: "Phuket",
+      language: "English",
+      incidentDateIso: "2026-05-02T05:00:00.000Z",
+      evidenceText: "Andaman Explorer Tours Online. Island tour 2,999 THB per person. Full payment today to confirm your booking. Transfer to personal account. Account name: Nattapong S. No license number. We are a local team, not a company."
+    },
+    expectStatus: "completed",
+    expectRisk: "High",
+    expectGroundingTool: "operator_payment_reference",
+    rejectStatus: "evidence_mismatch"
+  },
+  {
+    name: "Generic passport question routes to rental evidence",
+    body: {
+      message: "Should I leave this with them?",
+      city: "Phuket",
+      language: "English",
+      incidentDateIso: "2026-05-02T05:00:00.000Z",
+      evidenceText: "Motorbike Rental Agreement. Original passport deposit required. Passport held until vehicle is returned. Damage deposit 5,000 THB. Renter pays for damage decided by the shop."
+    },
+    expectStatus: "completed",
+    expectRisk: "High",
+    expectGroundingTool: "rental_document_reference",
+    rejectStatus: "evidence_mismatch"
+  },
+  {
+    name: "Generic safety question routes to job lure evidence",
+    body: {
+      message: "Is this offer safe?",
+      city: "Bangkok",
+      language: "English",
+      incidentDateIso: "2026-05-02T05:00:00.000Z",
+      evidenceText: "Casting job offer. Driver will pick you up at the airport and take you toward Mae Sot near the Myanmar border. Do not tell your hotel or family. Keep this secret until the interview."
+    },
+    expectStatus: "completed",
+    expectRisk: "Emergency",
+    expectGroundingTool: "job_lure_reference",
+    rejectStatus: "evidence_mismatch"
+  },
+  {
     name: "Mismatch choose typed situation",
     body: {
       message: "A taxi driver says he wants 50 baht to take me from Siam to Wat Pho. Is this normal?",
@@ -544,6 +600,10 @@ for (const testCase of cases) {
 
   if (testCase.expectStatusIn && !testCase.expectStatusIn.includes(data.status)) {
     throw new Error(`${testCase.name}: expected status in ${testCase.expectStatusIn.join(", ")}, got ${data.status}`);
+  }
+
+  if (testCase.rejectStatus && data.status === testCase.rejectStatus) {
+    throw new Error(`${testCase.name}: rejected status ${testCase.rejectStatus}`);
   }
 
   if (testCase.expectClarificationKey && data.clarification_key !== testCase.expectClarificationKey) {

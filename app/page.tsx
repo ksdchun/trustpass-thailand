@@ -89,8 +89,8 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-cols-3">
           {visualStories.map((story) => (
             <article key={story.title} className="overflow-hidden rounded-[8px] border border-fluent-border bg-white shadow-sm">
-              <div className="relative aspect-[4/3] bg-fluent-canvas">
-                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 768px) 33vw, 100vw" className="object-cover" />
+              <div className="relative h-[420px] bg-fluent-canvas sm:h-[520px] md:h-[460px] lg:h-[560px]">
+                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 768px) 33vw, 100vw" className="object-contain p-2" />
               </div>
               <div className="p-5">
                 <p className="text-xs font-bold uppercase tracking-wide text-azure">{story.label}</p>

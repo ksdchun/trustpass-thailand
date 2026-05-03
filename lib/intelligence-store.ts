@@ -11,6 +11,24 @@ export type IntelligenceReport = {
   signal_count: number;
 };
 
+type RiskCounts = {
+  Low: number;
+  Caution: number;
+  High: number;
+  Emergency: number;
+};
+
+export type CityIntelligenceStats = {
+  total: number;
+  emergency: number;
+  topCategory: string;
+  maxRiskLevel: string;
+  mapRiskLevel: string;
+  averageRiskScore: number;
+  riskCounts: RiskCounts;
+  categoryCounts: Record<string, number>;
+};
+
 declare global {
   // eslint-disable-next-line no-var
   var __trustpassStore: IntelligenceReport[] | undefined;
@@ -24,6 +42,27 @@ const getRiskScore = (level: string): number => {
     case "emergency": return 90;
     default: return 0;
   }
+};
+
+const getRiskLevelFromScore = (score: number): string => {
+  if (score >= 90) return "Emergency";
+  if (score >= 70) return "High";
+  if (score >= 45) return "Caution";
+  return "Low";
+};
+
+const getRiskBucket = (level: string): keyof RiskCounts => {
+  switch (level.toLowerCase()) {
+    case "emergency": return "Emergency";
+    case "high": return "High";
+    case "caution": return "Caution";
+    default: return "Low";
+  }
+};
+
+const getDominantRiskLevel = (counts: RiskCounts): string => {
+  const order: Array<keyof RiskCounts> = ["Emergency", "High", "Caution", "Low"];
+  return order.sort((a, b) => counts[b] - counts[a])[0];
 };
 
 const generatePastDate = (maxDaysAgo: number): Date => {
@@ -85,7 +124,25 @@ const seedReports = (): IntelligenceReport[] => {
 
 export const store = globalThis.__trustpassStore ??= seedReports();
 
+export const isIntelligenceEligible = (result: RiskCheckResult): boolean => {
+  if (result.risk_level === "Low") return false;
+  if (result.category === "No strong scam pattern detected") return false;
+  if (result.category === "Outside TrustPass scope") return false;
+  if (result.category === "Evidence mismatch") return false;
+  return true;
+};
+
+const isReportEligible = (report: IntelligenceReport): boolean => {
+  if (report.risk_level.toLowerCase() === "low") return false;
+  if (report.category === "No strong scam pattern detected") return false;
+  if (report.category === "Outside TrustPass scope") return false;
+  if (report.category === "Evidence mismatch") return false;
+  return true;
+};
+
 export const recordCheck = (result: RiskCheckResult, city: string): void => {
+  if (!isIntelligenceEligible(result)) return;
+
   const newReport: IntelligenceReport = {
     id: randomUUID(),
     timestamp: new Date(),
@@ -99,31 +156,48 @@ export const recordCheck = (result: RiskCheckResult, city: string): void => {
 };
 
 export const getRecentReports = (limit = 10): IntelligenceReport[] => {
-  return store.slice(0, limit);
+  return store.filter(isReportEligible).slice(0, limit);
 };
 
-export const getCityStats = (): Record<string, { total: number; emergency: number; topCategory: string; maxRiskLevel: string }> => {
-  const stats: Record<string, { total: number; emergency: number; categoryCounts: Record<string, number>; maxRiskScore: number }> = {};
+export const getCityStats = (): Record<string, CityIntelligenceStats> => {
+  const stats: Record<string, {
+    total: number;
+    emergency: number;
+    categoryCounts: Record<string, number>;
+    riskCounts: RiskCounts;
+    maxRiskScore: number;
+    riskScoreTotal: number;
+  }> = {};
 
-  store.forEach(report => {
+  store.filter(isReportEligible).forEach(report => {
     if (!stats[report.city]) {
-      stats[report.city] = { total: 0, emergency: 0, categoryCounts: {}, maxRiskScore: 0 };
+      stats[report.city] = {
+        total: 0,
+        emergency: 0,
+        categoryCounts: {},
+        riskCounts: { Low: 0, Caution: 0, High: 0, Emergency: 0 },
+        maxRiskScore: 0,
+        riskScoreTotal: 0
+      };
     }
     const cityStat = stats[report.city];
     
     cityStat.total += 1;
-    if (report.risk_level.toLowerCase() === "emergency") {
+    const riskBucket = getRiskBucket(report.risk_level);
+    cityStat.riskCounts[riskBucket] += 1;
+    if (riskBucket === "Emergency") {
       cityStat.emergency += 1;
     }
     
     cityStat.categoryCounts[report.category] = (cityStat.categoryCounts[report.category] || 0) + 1;
+    cityStat.riskScoreTotal += report.risk_score;
     
     if (report.risk_score > cityStat.maxRiskScore) {
       cityStat.maxRiskScore = report.risk_score;
     }
   });
 
-  const finalStats: Record<string, { total: number; emergency: number; topCategory: string; maxRiskLevel: string }> = {};
+  const finalStats: Record<string, CityIntelligenceStats> = {};
   
   for (const city in stats) {
     const cityData = stats[city];
@@ -137,16 +211,18 @@ export const getCityStats = (): Record<string, { total: number; emergency: numbe
       }
     }
     
-    let maxRiskLevel = "Low";
-    if (cityData.maxRiskScore >= 90) maxRiskLevel = "Emergency";
-    else if (cityData.maxRiskScore >= 70) maxRiskLevel = "High";
-    else if (cityData.maxRiskScore >= 45) maxRiskLevel = "Caution";
+    const maxRiskLevel = getRiskLevelFromScore(cityData.maxRiskScore);
+    const averageRiskScore = cityData.total > 0 ? cityData.riskScoreTotal / cityData.total : 0;
 
     finalStats[city] = {
       total: cityData.total,
       emergency: cityData.emergency,
       topCategory,
-      maxRiskLevel
+      maxRiskLevel,
+      mapRiskLevel: getDominantRiskLevel(cityData.riskCounts),
+      averageRiskScore,
+      riskCounts: cityData.riskCounts,
+      categoryCounts: cityData.categoryCounts
     };
   }
 
@@ -162,7 +238,7 @@ export const getKPIs = (): { totalChecks7d: number; emergencyCount7d: number; to
   const categoryCounts: Record<string, number> = {};
   const cityCounts: Record<string, number> = {};
 
-  store.forEach(report => {
+  store.filter(isReportEligible).forEach(report => {
     if (report.timestamp >= sevenDaysAgo) {
       totalChecks7d++;
       if (report.risk_level.toLowerCase() === "emergency") {
@@ -196,5 +272,5 @@ export const getKPIs = (): { totalChecks7d: number; emergencyCount7d: number; to
 };
 
 export const getAllReports = (): IntelligenceReport[] => {
-  return [...store];
+  return store.filter(isReportEligible);
 };

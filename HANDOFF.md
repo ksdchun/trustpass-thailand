@@ -223,7 +223,7 @@ Input:
 {
   message: string;
   city: string;
-  language: "English" | "Thai" | "Chinese";
+  language?: "English" | "Thai" | "Chinese"; // UI currently sends English by default; visible selector is hidden.
   incidentDateIso: string;
   userLocation?: {
     latitude: number;
@@ -250,6 +250,19 @@ May return clarification:
 }
 ```
 
+May return scope/evidence guardrail responses:
+
+```ts
+{
+  status: "out_of_scope" | "evidence_mismatch";
+  question?: string;
+  reason: string;
+  suggested_answers?: string[];
+  evidence_topic?: string;
+  evidence_relevance?: "relevant" | "weak" | "unrelated";
+}
+```
+
 Or completed:
 
 ```ts
@@ -272,6 +285,8 @@ Or completed:
 ### `/api/risk-check`
 
 Backward-compatible legacy endpoint. Keep this stable.
+
+Dashboard/intelligence recording only accepts eligible completed `Caution`, `High`, and `Emergency` results. `Low`, out-of-scope, and evidence-mismatch-only responses should not be counted.
 
 ### `/api/extract`
 

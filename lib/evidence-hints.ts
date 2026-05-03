@@ -59,7 +59,5 @@ function cleanLabel(value: string) {
 }
 
 function looksLikePrice(value: string) {
-  const hasCurrency = /baht|thb|บาท|฿/i.test(value);
-  const number = Number(value.replace(/[^\d]/g, ""));
-  return hasCurrency || number >= 40;
+  return /baht|thb|บาท|฿/i.test(value);
 }

@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 788" role="img" aria-labelledby="title desc">
+  <title id="title">TrustPass Thailand current Azure architecture</title>
+  <desc id="desc">Architecture diagram showing Next.js app routes, Azure Document Intelligence OCR, deterministic TrustPass grounding, optional Azure Maps, Azure OpenAI reasoning, and dashboard recording for Caution or higher cases.</desc>
+  <rect width="1400" height="788" fill="#F8FBFF"/>
+  <text x="700" y="60" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="700" fill="#005A9E">Current Azure AI Architecture</text>
+  <text x="700" y="98" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="#323130">TrustPass Thailand uses Azure AI for OCR and final reasoning, with deterministic grounding first.</text>
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#0078D4"/>
+    </marker>
+    <style>
+      .h{font-family:Segoe UI,Arial,sans-serif;font-weight:700;fill:#323130}
+      .t{font-family:Segoe UI,Arial,sans-serif;fill:#605E5C}
+      .b{fill:#fff;stroke:#D2E3F8;rx:8;filter:url(#shadow)}
+      .cap{fill:#0078D4}
+    </style>
+  </defs>
+
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <g>
+      <rect x="45" y="158" width="210" height="430" rx="8" fill="#FFFFFF" stroke="#D2E3F8" filter="url(#shadow)"/>
+      <rect x="45" y="158" width="210" height="48" rx="8" fill="#0078D4"/>
+      <text x="150" y="189" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF">Frontend</text>
+      <rect x="72" y="245" width="156" height="64" rx="8" fill="#EAF4FE" stroke="#A9D3F5"/>
+      <text x="150" y="273" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">/check</text>
+      <text x="150" y="295" text-anchor="middle" font-size="13" fill="#605E5C">chat + evidence UI</text>
+      <rect x="72" y="337" width="156" height="64" rx="8" fill="#FFFFFF" stroke="#E2E8F0"/>
+      <text x="150" y="365" text-anchor="middle" font-size="15" font-weight="700" fill="#323130">Evidence readout</text>
+      <text x="150" y="387" text-anchor="middle" font-size="13" fill="#605E5C">OCR text + hints</text>
+      <rect x="72" y="429" width="156" height="64" rx="8" fill="#FFFFFF" stroke="#E2E8F0"/>
+      <text x="150" y="457" text-anchor="middle" font-size="15" font-weight="700" fill="#323130">Result cards</text>
+      <text x="150" y="479" text-anchor="middle" font-size="13" fill="#605E5C">taxi, food, payment</text>
+    </g>
+
+    <path d="M270 270 H345" stroke="#0078D4" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+
+    <g>
+      <rect x="360" y="158" width="240" height="430" rx="8" fill="#FFFFFF" stroke="#D2E3F8" filter="url(#shadow)"/>
+      <rect x="360" y="158" width="240" height="48" rx="8" fill="#0078D4"/>
+      <text x="480" y="189" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF">Next.js API Layer</text>
+      <rect x="390" y="235" width="180" height="72" rx="8" fill="#F8FBFF" stroke="#BBD7F5"/>
+      <text x="480" y="263" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">/api/evidence/extract</text>
+      <text x="480" y="286" text-anchor="middle" font-size="13" fill="#605E5C">file upload to OCR</text>
+      <rect x="390" y="337" width="180" height="72" rx="8" fill="#F8FBFF" stroke="#BBD7F5"/>
+      <text x="480" y="365" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">/api/situation/analyze</text>
+      <text x="480" y="388" text-anchor="middle" font-size="13" fill="#605E5C">main product flow</text>
+      <rect x="390" y="439" width="180" height="72" rx="8" fill="#FFFFFF" stroke="#E2E8F0"/>
+      <text x="480" y="467" text-anchor="middle" font-size="15" font-weight="700" fill="#323130">/api/risk-check</text>
+      <text x="480" y="490" text-anchor="middle" font-size="13" fill="#605E5C">legacy compatible</text>
+    </g>
+
+    <path d="M615 270 H690" stroke="#0078D4" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+    <path d="M615 373 H690" stroke="#0078D4" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+
+    <g>
+      <rect x="705" y="138" width="300" height="510" rx="8" fill="#FFFFFF" stroke="#D2E3F8" filter="url(#shadow)"/>
+      <rect x="705" y="138" width="300" height="48" rx="8" fill="#0078D4"/>
+      <text x="855" y="169" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF">TrustPass Grounding</text>
+      <rect x="735" y="220" width="240" height="62" rx="8" fill="#FEF3C7" stroke="#F59E0B"/>
+      <text x="855" y="246" text-anchor="middle" font-size="15" font-weight="700" fill="#92400E">Scope + evidence consistency</text>
+      <text x="855" y="267" text-anchor="middle" font-size="13" fill="#605E5C">out-of-scope, weak OCR, mismatch</text>
+      <rect x="735" y="310" width="240" height="62" rx="8" fill="#F0FDF4" stroke="#86EFAC"/>
+      <text x="855" y="336" text-anchor="middle" font-size="15" font-weight="700" fill="#107C10">Local curated datasets</text>
+      <text x="855" y="357" text-anchor="middle" font-size="13" fill="#605E5C">taxi fares, food tiers, scam patterns</text>
+      <rect x="735" y="400" width="240" height="62" rx="8" fill="#F8FAFC" stroke="#CBD5E1"/>
+      <text x="855" y="426" text-anchor="middle" font-size="15" font-weight="700" fill="#334155">Clarification-first rules</text>
+      <text x="855" y="447" text-anchor="middle" font-size="13" fill="#605E5C">venue, account, evidence mismatch</text>
+      <rect x="735" y="490" width="240" height="62" rx="8" fill="#EAF4FE" stroke="#A9D3F5"/>
+      <text x="855" y="516" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">Optional Azure Maps</text>
+      <text x="855" y="537" text-anchor="middle" font-size="13" fill="#605E5C">route distance when key is configured</text>
+    </g>
+
+    <path d="M1018 282 H1090" stroke="#0078D4" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+    <path d="M1018 430 H1090" stroke="#0078D4" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+
+    <g>
+      <rect x="1105" y="158" width="250" height="430" rx="8" fill="#FFFFFF" stroke="#D2E3F8" filter="url(#shadow)"/>
+      <rect x="1105" y="158" width="250" height="48" rx="8" fill="#0078D4"/>
+      <text x="1230" y="189" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF">Azure AI Services</text>
+      <rect x="1135" y="242" width="190" height="76" rx="8" fill="#EAF4FE" stroke="#A9D3F5"/>
+      <text x="1230" y="270" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">Document Intelligence</text>
+      <text x="1230" y="293" text-anchor="middle" font-size="13" fill="#605E5C">OCR for images and PDFs</text>
+      <rect x="1135" y="356" width="190" height="76" rx="8" fill="#EAF4FE" stroke="#A9D3F5"/>
+      <text x="1230" y="384" text-anchor="middle" font-size="15" font-weight="700" fill="#005A9E">Azure OpenAI</text>
+      <text x="1230" y="407" text-anchor="middle" font-size="13" fill="#605E5C">GPT-4o structured reasoning</text>
+      <rect x="1135" y="470" width="190" height="76" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="1230" y="498" text-anchor="middle" font-size="15" font-weight="700" fill="#323130">Not used in MVP</text>
+      <text x="1230" y="521" text-anchor="middle" font-size="13" fill="#605E5C">Azure Vision / Bing grounding</text>
+    </g>
+
+    <path d="M1230 610 V678 H210 V610" stroke="#0078D4" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+    <rect x="180" y="680" width="1040" height="58" rx="8" fill="#EAF4FE" stroke="#A9D3F5"/>
+    <text x="700" y="715" text-anchor="middle" font-size="18" font-weight="700" fill="#005A9E">Dashboard records only eligible Caution, High, and Emergency signals for the current demo session.</text>
+  </g>
+</svg>

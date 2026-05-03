@@ -1,4 +1,5 @@
 import { extractEvidenceHints } from "@/lib/evidence-hints";
+import { classifyTextRelevance } from "@/lib/relevance";
 import type { EvidenceExtractResult } from "@/lib/types";
 
 export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtractResult> {
@@ -43,12 +44,17 @@ export async function extractEvidenceFromFile(file: File): Promise<EvidenceExtra
 
       if (result.status === "succeeded") {
         const extractedText = result.analyzeResult?.content || "";
+        const relevance = classifyTextRelevance(extractedText, "evidence");
         return {
           extractedText,
           detectedFields: {
             source: "azure-document-intelligence",
             pages: result.analyzeResult?.pages?.length || 0,
             hints: extractEvidenceHints(extractedText),
+            relevance: relevance.relevance,
+            relevance_reason: relevance.reason,
+            evidence_topic: relevance.topic,
+            usable_as_case_evidence: relevance.usable_as_case_evidence,
             recoverable: extractedText.trim().length === 0,
             note: extractedText.trim() ? undefined : "OCR succeeded but no readable text was detected. Ask the user to paste key text."
           }
@@ -123,12 +129,17 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 
 function fallbackEvidence(fileName: string, note: string): EvidenceExtractResult {
   const extractedText = demoExtract(fileName);
+  const relevance = classifyTextRelevance(extractedText, "evidence");
   return {
     extractedText,
     detectedFields: {
       source: "fallback",
       pages: 0,
       hints: extractEvidenceHints(extractedText),
+      relevance: relevance.relevance,
+      relevance_reason: relevance.reason,
+      evidence_topic: relevance.topic,
+      usable_as_case_evidence: relevance.usable_as_case_evidence,
       recoverable: true,
       note
     }
@@ -149,5 +160,5 @@ function demoExtract(fileName: string) {
   if (lower.includes("rental") || lower.includes("passport")) {
     return "Motorbike rental agreement requires original passport deposit until vehicle is returned. Damage policy unclear.";
   }
-  return "Uploaded evidence could not be read. Paste key text into the chat or use evidence related to menu, tour, rental, passport, casting, job, LINE, QR, or WeChat.";
+  return "";
 }

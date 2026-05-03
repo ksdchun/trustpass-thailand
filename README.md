@@ -24,18 +24,18 @@ The product is designed for:
 - Safe next steps and Thai phrases.
 - Evidence checklist.
 - Incident report summary for hotel staff, tourist police, embassies, or insurers.
-- Trust intelligence dashboard for scam categories, cities, and risk patterns.
+- Trust intelligence dashboard for eligible `Caution`, `High`, and `Emergency` cases by city, scam category, and risk pattern.
 - Light/dark mode with a Microsoft/Azure-inspired visual theme.
 
 ## Azure AI Architecture
 
 TrustPass is designed around Azure AI services:
 
-- **Azure OpenAI / Azure AI Foundry**: risk reasoning, response generation, Thai phrases, and incident reports.
-- **Azure AI Document Intelligence**: OCR and extraction from uploaded evidence.
-- **Azure AI Vision**: optional future enhancement for signs, vehicle plates, storefront images, and richer visual evidence.
+- **Azure OpenAI**: final structured risk reasoning, response generation, Thai phrases, and incident reports using the configured deployment.
+- **Azure AI Document Intelligence**: OCR and extraction from uploaded screenshots, images, and PDFs.
+- **Optional Azure Maps**: route-distance grounding for taxi fare estimates when `AZURE_MAPS_KEY` is configured.
 
-The application also includes a resilient local risk engine so the demo remains usable while Azure credentials are being configured.
+The application also includes deterministic TrustPass grounding before Azure OpenAI: scope checking, evidence-topic consistency, taxi fare references, Bangkok food price tiers, payment-fraud patterns, rental/document risk, rental damage pressure, and fake job/casting luring. Azure AI Vision and live Bing grounding are not used in the current MVP.
 
 ## Demo Routes
 
@@ -47,19 +47,27 @@ The application also includes a resilient local risk engine so the demo remains 
 
 ## Demo Scenarios
 
-1. **Taxi overcharging**
+1. **Transport overcharging and detours**
    - Input: `Taxi driver says meter broken and asks 800 baht from Siam to Wat Pho.`
-   - Expected risk: `Caution`
+   - Expected risk: `Caution` or `High`
 
-2. **Fake tour payment**
+2. **Food and menu price verification**
+   - Input: uploaded menu evidence plus venue/location context such as Jay Fai or a mall restaurant.
+   - Expected risk: clarification first when venue is uncertain; `Low` or `Caution` when a premium venue explains the price.
+
+3. **Tour, QR, and payment fraud**
    - Input: a LINE/tour seller asks for full payment to a personal bank account and shows no license number.
    - Expected risk: `High`
 
-3. **Motorbike rental passport retention**
+4. **Rental passport/document risk**
    - Input: `The rental shop wants to keep my original passport.`
    - Expected risk: `High`
 
-4. **Fake casting or job luring**
+5. **Rental damage cash pressure**
+   - Input: a jet ski or motorbike shop demands cash now for damage with no receipt or neutral inspection.
+   - Expected risk: `High`
+
+6. **Fake casting or job luring**
    - Input: a WeChat/LINE message offers paid casting, free airport pickup, border travel, secrecy, or travel toward Mae Sot.
    - Expected risk: `Emergency`
 
@@ -87,6 +95,8 @@ AZURE_AI_SERVICES_API_KEY=your-key
 
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com
 AZURE_DOCUMENT_INTELLIGENCE_KEY=your-key
+
+AZURE_MAPS_KEY=optional-route-grounding-key
 ```
 
 `AZURE_DOCUMENT_INTELLIGENCE_*` is optional when `AZURE_AI_SERVICES_*` is set. TrustPass uses the shared Azure AI Services endpoint/key from Foundry for OCR, and only falls back to demo extraction when no usable Azure AI Services credentials are configured.
@@ -97,8 +107,9 @@ AZURE_DOCUMENT_INTELLIGENCE_KEY=your-key
 - TypeScript
 - Tailwind CSS
 - Lucide React icons
-- Azure OpenAI / Azure AI Foundry ready API route
-- Azure AI Document Intelligence ready API route
+- Azure OpenAI API route
+- Azure AI Document Intelligence OCR route
+- Optional Azure Maps route grounding
 - Vercel deployment
 
 ## Responsible Use

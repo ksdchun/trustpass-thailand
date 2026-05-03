@@ -21,7 +21,8 @@ const defaultEvidence = [
 const defaultThaiPhrase = "ขอเวลาตรวจสอบข้อมูลก่อนดำเนินการต่อครับ/ค่ะ";
 
 export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResult {
-  const combined = `${request.message} ${request.extractedText ?? ""} ${request.evidenceText ?? ""} ${request.city}`.toLowerCase();
+  const clarificationText = Object.values(request.clarificationAnswers || {}).join(" ");
+  const combined = `${request.message} ${request.extractedText ?? ""} ${request.evidenceText ?? ""} ${clarificationText} ${request.city}`.toLowerCase();
   const matches = typedPatterns
     .map((pattern) => {
       const hits = patternApplies(pattern.id, combined)
@@ -88,9 +89,12 @@ export function buildPrompt(request: RiskCheckRequest, baseline: RiskCheckResult
             message: request.message,
             extracted_evidence_text: request.extractedText ?? null,
             evidence_text: request.evidenceText ?? null,
+            ignored_evidence_text: request.ignoredEvidenceText ?? null,
+            evidence_relevance: request.evidenceRelevance ?? null,
             city: request.city,
             incident_date_iso: request.incidentDateIso ?? null,
             user_location: request.userLocation ?? null,
+            clarification_answers: request.clarificationAnswers ?? null,
             output_language: request.language,
             attachments: request.attachmentsMetadata ?? []
           },

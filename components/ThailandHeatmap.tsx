@@ -9,10 +9,30 @@ interface CityPoint {
   topCategory: string;
   hasEmergency: boolean;
   maxRiskLevel: string;
+  mapRiskLevel: string;
+  averageRiskScore: number;
+  riskCounts: RiskCounts;
+  categoryCounts: Record<string, number>;
 }
 
+type RiskCounts = {
+  Low: number;
+  Caution: number;
+  High: number;
+  Emergency: number;
+};
+
 interface ThailandHeatmapProps {
-  cityStats: Record<string, { total: number; emergency: number; topCategory: string; maxRiskLevel: string }>;
+  cityStats: Record<string, {
+    total: number;
+    emergency: number;
+    topCategory: string;
+    maxRiskLevel: string;
+    mapRiskLevel?: string;
+    averageRiskScore?: number;
+    riskCounts?: Partial<RiskCounts>;
+    categoryCounts?: Record<string, number>;
+  }>;
 }
 
 const BASE_CITIES = [
@@ -26,12 +46,21 @@ const BASE_CITIES = [
   { name: 'Chiang Rai', nameTh: 'เชียงราย', x: 164, y: 47 },
 ];
 
-const getColor = (riskLevel: string, hasEmergency: boolean) => {
-  if (hasEmergency || riskLevel === 'Emergency') return '#A4262C'; // Red
+const getColor = (riskLevel: string) => {
+  if (riskLevel === 'Emergency') return '#A4262C'; // Red
   if (riskLevel === 'High') return '#D83B01'; // Orange
   if (riskLevel === 'Caution') return '#FFB900'; // Yellow
-  return '#107C10'; // Green
+  return '#64748B'; // Neutral fallback
 };
+
+const normalizeRiskCounts = (counts?: Partial<RiskCounts>, emergency = 0): RiskCounts => ({
+  Low: counts?.Low || 0,
+  Caution: counts?.Caution || 0,
+  High: counts?.High || 0,
+  Emergency: counts?.Emergency ?? emergency,
+});
+
+const formatCategory = (category: string) => category.replace(/_/g, ' ');
 
 export function ThailandHeatmap({ cityStats }: ThailandHeatmapProps) {
   const [hoveredCity, setHoveredCity] = useState<CityPoint | null>(null);
@@ -40,12 +69,17 @@ export function ThailandHeatmap({ cityStats }: ThailandHeatmapProps) {
 
   const points: CityPoint[] = BASE_CITIES.map((city) => {
     const stat = cityStats[city.name] || { total: 0, emergency: 0, topCategory: 'N/A', maxRiskLevel: 'Low' };
+    const riskCounts = normalizeRiskCounts(stat.riskCounts, stat.emergency);
     return {
       ...city,
       count: stat.total,
       topCategory: stat.topCategory,
       hasEmergency: stat.emergency > 0,
       maxRiskLevel: stat.maxRiskLevel,
+      mapRiskLevel: stat.mapRiskLevel || stat.maxRiskLevel,
+      averageRiskScore: stat.averageRiskScore || 0,
+      riskCounts,
+      categoryCounts: stat.categoryCounts || {},
     };
   }).filter(p => p.count > 0);
 
@@ -53,7 +87,7 @@ export function ThailandHeatmap({ cityStats }: ThailandHeatmapProps) {
     <div ref={containerRef} className="relative w-full aspect-[2/3] max-w-sm mx-auto bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
       <svg viewBox="0 0 560 1025" className="w-full h-full rounded-xl">
         {/* Actual Thailand Paths */}
-        <g fill="#E2E8F0" stroke="#CBD5E1" strokeWidth="1">
+        <g className="thailand-map-base" fill="#E2E8F0" stroke="#CBD5E1" strokeWidth="1">
           <g transform="translate(60, 0) scale(0.8) rotate(-5.5 200 500)">
 <path d="m 217.28844,457.46255 0.7,-0.33 2,0.66 0.51,-0.71 0.92,0.42 0.02,0.76 0.97,0.03 0.04,0.41 3.31,0.12 1.17,0.83 1.47,0.08 6.19,-1.38 6.29,-0.59 0,0 -0.52,5.83 -0.26,0.81 -0.69,-0.1 3.08,2.5 -1.91,1.66 -3.67,6.17 0.39,0.25 0,0 -0.12,0.53 -4.77,-1.85 -5.27,-0.12 0.13,1.57 -0.9,2.71 -2.11,-0.72 -0.07,-0.64 -0.79,0.33 -0.52,1.32 -4.51,-1.14 0.54,-1.65 -2.15,-0.97 -0.62,2.33 -0.8,0.2 -0.91,-0.7 -0.28,0.43 -0.19,3.13 0.4,1.56 -0.76,0.26 -1.92,-0.44 -0.75,0.99 -0.34,-0.82 -0.7,0.04 -0.68,3.38 0.54,3.67 0,0 -3.01,0.59 0,0 -0.23,-1.22 1.03,-2.14 -0.14,-1.23 -1.56,0.21 -0.69,-2.14 -0.54,0.19 0.35,-0.35 -0.76,-2.66 -0.99,-0.74 -1.08,-0.06 -0.55,-6.38 0,0 -0.14,-4.58 -0.67,-1.54 0,0 0.72,1.26 8.74,0.44 0.75,0.59 2.05,-0.77 1.01,-0.87 -0.58,-0.31 0.13,-0.52 2.35,-1.71 z" />
 <path d="m 209.74844,488.28255 -0.54,-3.67 0.68,-3.38 0.7,-0.04 0.34,0.82 0.75,-0.99 1.92,0.44 0.76,-0.26 -0.4,-1.56 0.19,-3.13 0.28,-0.43 0.91,0.7 0.8,-0.2 0.62,-2.33 2.15,0.97 -0.54,1.65 4.51,1.14 0.52,-1.32 0.79,-0.33 0.07,0.64 2.11,0.72 0.9,-2.71 -0.13,-1.57 5.27,0.12 4.77,1.85 0.12,-0.53 0,0 6.34,2.32 -0.47,0.72 1.01,0.67 -0.2,0.75 -2.43,2.66 -1.11,0.17 0.52,1.44 -0.69,1.09 -1.04,-0.61 -1.14,2.73 -0.05,2.27 -1.3,-0.32 -0.24,1.09 0,0 -3.58,-0.91 -7.76,-0.98 -3.33,-0.96 -3.59,-2.68 -0.06,-0.69 1.14,-1.55 -0.15,-1.18 -2.19,-0.48 -0.18,0.27 2.11,0.53 -1.07,2.66 1.01,2.09 -0.33,0.76 -0.73,0.66 -2.77,0.59 z" />
@@ -137,7 +171,7 @@ export function ThailandHeatmap({ cityStats }: ThailandHeatmapProps) {
         {/* City Points */}
         {points.map((point) => {
           const radius = Math.min(8 + point.count * 0.5, 40);
-          const color = getColor(point.maxRiskLevel, point.hasEmergency);
+          const color = getColor(point.mapRiskLevel);
           const isMaeSot = point.name === 'Mae Sot';
 
           return (
@@ -195,10 +229,10 @@ export function ThailandHeatmap({ cityStats }: ThailandHeatmapProps) {
       {/* Tooltip */}
       {hoveredCity && (
         <div
-          className="absolute bg-white/95 backdrop-blur-sm border border-slate-200 p-3 rounded shadow-lg pointer-events-none z-50 w-48"
+          className="absolute bg-white/95 backdrop-blur-sm border border-slate-200 p-3 rounded shadow-lg pointer-events-none z-50 w-64"
           style={{
-            left: `${Math.min(Math.max(tooltipPos.x, 0), 250)}px`,
-            top: `${Math.max(tooltipPos.y - 80, 10)}px`,
+            left: `${Math.min(Math.max(tooltipPos.x, 0), 210)}px`,
+            top: `${Math.max(tooltipPos.y - 120, 10)}px`,
           }}
         >
           <div className="font-bold text-slate-800">{hoveredCity.name}</div>
@@ -206,23 +240,51 @@ export function ThailandHeatmap({ cityStats }: ThailandHeatmapProps) {
           <div className="grid grid-cols-2 gap-1 text-xs mt-2">
             <span className="text-slate-600">Total Cases:</span>
             <span className="font-semibold text-right">{hoveredCity.count}</span>
-            <span className="text-slate-600">Emergency:</span>
-            <span className={`font-semibold text-right ${hoveredCity.hasEmergency ? 'text-red-600' : ''}`}>{hoveredCity.hasEmergency ? hoveredCity.count : 0}</span>
+            <span className="text-slate-600">Map status:</span>
+            <span className="font-semibold text-right">{hoveredCity.mapRiskLevel}</span>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px]">
+            {([
+              ['Caution', 'bg-yellow-50 text-yellow-700'],
+              ['High', 'bg-orange-50 text-orange-700'],
+              ['Emergency', 'bg-red-50 text-red-700'],
+            ] as const).map(([level, className]) => (
+              <div key={level} className={`rounded border border-slate-100 px-1 py-1 ${className}`}>
+                <div className="font-bold">{hoveredCity.riskCounts[level]}</div>
+                <div className="truncate">{level}</div>
+              </div>
+            ))}
           </div>
           <div className="mt-2 text-xs">
             <span className="block text-slate-500">Top Issue:</span>
-            <span className="block font-medium truncate">{hoveredCity.topCategory.replace(/_/g, ' ')}</span>
+            <span className="block font-medium truncate">{formatCategory(hoveredCity.topCategory)}</span>
+          </div>
+          <div className="mt-2 text-xs">
+            <span className="block text-slate-500">All case types:</span>
+            <div className="mt-1 space-y-0.5">
+              {Object.entries(hoveredCity.categoryCounts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([category, count]) => (
+                  <div key={category} className="flex justify-between gap-2">
+                    <span className="truncate">{formatCategory(category)}</span>
+                    <span className="font-semibold">{count}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+          <div className="mt-2 border-t border-slate-100 pt-1 text-[10px] text-slate-500">
+            Highest seen: {hoveredCity.maxRiskLevel}
+            {hoveredCity.averageRiskScore > 0 ? ` · Avg score ${Math.round(hoveredCity.averageRiskScore)}` : ''}
           </div>
         </div>
       )}
 
       {/* Legend */}
       <div className="absolute bottom-3 right-3 bg-white/90 p-2 rounded shadow-sm border border-slate-100 text-[10px] space-y-1">
-        <div className="font-semibold text-slate-600 mb-1">Risk Levels</div>
+        <div className="font-semibold text-slate-600 mb-1">Tracked Risk</div>
         <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#A4262C]"></div>Emergency</div>
         <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#D83B01]"></div>High</div>
         <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#FFB900]"></div>Caution</div>
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#107C10]"></div>Low</div>
         <div className="mt-2 text-slate-400 border-t border-slate-100 pt-1">Size = Report Count</div>
       </div>
     </div>

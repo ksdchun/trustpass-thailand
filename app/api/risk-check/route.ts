@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { recordCheck } from "@/lib/intelligence-store";
+import { isIntelligenceEligible, recordCheck } from "@/lib/intelligence-store";
 import { analyzeSituation, normalizeAnalyzeRequest, toLegacyRiskResult } from "@/lib/situation-service";
 import type { RiskCheckRequest } from "@/lib/types";
 
@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       language: payload.language,
       incidentDateIso: payload.incidentDateIso || new Date().toISOString(),
       evidenceText: payload.evidenceText || payload.extractedText,
+      evidenceRelevance: payload.evidenceRelevance,
       userLocation: payload.userLocation,
       attachmentsMetadata: payload.attachmentsMetadata,
       clarificationAnswers: payload.clarificationAnswers
@@ -32,10 +33,12 @@ export async function POST(request: Request) {
 
   const result = toLegacyRiskResult(response);
 
-  try {
-    recordCheck(result, payload.city);
-  } catch (error) {
-    console.error("Failed to record check in intelligence store", error);
+  if (response.status === "completed" && isIntelligenceEligible(result)) {
+    try {
+      recordCheck(result, payload.city);
+    } catch (error) {
+      console.error("Failed to record check in intelligence store", error);
+    }
   }
 
   return NextResponse.json(result);

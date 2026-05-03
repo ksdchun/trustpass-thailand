@@ -10,9 +10,9 @@ export default function ScenariosPage() {
       <section className="border-b border-fluent-border bg-white">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <p className="text-sm font-bold uppercase tracking-wide text-azure">Guided Product Scenarios</p>
-          <h1 className="mt-2 max-w-3xl text-4xl font-bold text-ink">Show the committee how TrustPass handles every scale of tourism fraud.</h1>
+          <h1 className="mt-2 max-w-3xl text-4xl font-bold text-ink">Show the committee the major scam categories TrustPass can detect.</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-fluent-muted">
-            Each scenario demonstrates a different product strength: natural chat, evidence extraction, tourism risk detection, Thai phrase support, and incident reporting.
+            Each category demonstrates how the product combines chat, evidence extraction, deterministic grounding, clarification, Thai phrase support, and incident reporting.
           </p>
         </div>
       </section>
@@ -29,11 +29,15 @@ export default function ScenariosPage() {
                   {scenario.city}
                 </span>
                 <RiskPill level={scenario.riskLevel} />
+                <span className="inline-flex rounded-full border border-fluent-border bg-white px-3 py-1 text-xs font-bold text-fluent-muted">
+                  {scenario.riskRange}
+                </span>
               </div>
             </div>
             <div className="grid gap-4">
-              <Block title="Tourist input" text={scenario.touristInput} />
+              <Block title="What a tourist might ask" text={scenario.touristInput} />
               <Block title="Evidence type" text={scenario.evidenceType} />
+              <Block title="What TrustPass does" text={scenario.trustPassDoes} />
               <Block title="Why it matters" text={scenario.whyItMatters} />
             </div>
             <div className="rounded-[8px] border border-fluent-border bg-fluent-canvas p-4">
@@ -57,7 +61,7 @@ export default function ScenariosPage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
             <p className="text-lg font-bold text-ink">Recommended judging path</p>
-            <p className="mt-1 text-sm text-fluent-muted">Run the fake casting scenario last. It is the strongest Thailand-specific trust crisis case.</p>
+            <p className="mt-1 text-sm text-fluent-muted">Start with payment or transport, then show food/menu clarification, and finish with fake job/casting emergency luring.</p>
           </div>
           <Link href="/check" className="inline-flex items-center gap-2 rounded-[8px] bg-azure px-5 py-3 text-sm font-bold text-white transition hover:bg-fluent-blueDark">
             Try in live chat

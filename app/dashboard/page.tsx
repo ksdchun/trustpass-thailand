@@ -16,16 +16,37 @@ type IntelligenceReport = {
   signal_count: number;
 };
 
+type RiskCounts = {
+  Low: number;
+  Caution: number;
+  High: number;
+  Emergency: number;
+};
+
+type CityStats = {
+  total: number;
+  emergency: number;
+  topCategory: string;
+  maxRiskLevel: string;
+  mapRiskLevel?: string;
+  averageRiskScore?: number;
+  riskCounts?: Partial<RiskCounts>;
+  categoryCounts?: Record<string, number>;
+};
+
 type IntelligenceData = {
   kpis: {
     totalChecks7d: number;
     emergencyCount7d: number;
     topCategory: string;
     mostAffectedCity: string;
+    sessionChecks?: number;
   };
-  cityStats: Record<string, { total: number; emergency: number; topCategory: string; maxRiskLevel: string }>;
+  cityStats: Record<string, CityStats>;
   recentReports: IntelligenceReport[];
 };
+
+const SESSION_CASES_KEY = "trustpass-session-cases";
 
 export default function DashboardPage() {
   const [data, setData] = useState<IntelligenceData | null>(null);
@@ -37,7 +58,7 @@ export default function DashboardPage() {
       const res = await fetch("/api/intelligence");
       if (!res.ok) throw new Error("Failed to fetch");
       const jsonData = await res.json() as IntelligenceData;
-      setData(jsonData);
+      setData(mergeSessionData(jsonData, readSessionReports()));
       setLastUpdated(new Date());
     } catch (e) {
       console.error(e);
@@ -90,7 +111,7 @@ export default function DashboardPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
             </span>
-            Live · Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
 
@@ -101,7 +122,7 @@ export default function DashboardPage() {
           </p>
           <h1 className="mt-2 text-3xl font-bold text-ink">B2G Dashboard</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Live aggregated signals from tourist risk-checks across Thailand. Used by TAT and Tourist Police to monitor hotspots, identify emerging scam patterns, and deploy preventive resources.
+            Live aggregated Caution, High, and Emergency signals from tourist risk-checks across Thailand. Used by TAT and Tourist Police to monitor hotspots, identify emerging scam patterns, and deploy preventive resources.
           </p>
         </header>
 
@@ -115,7 +136,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div className="bg-white p-5 rounded-[8px] border border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-slate-500">Total Checks (7d)</h3>
+                  <h3 className="text-sm font-medium text-slate-500">Tracked Cases (7d)</h3>
                   <BarChart3 className="h-4 w-4 text-slate-400" />
                 </div>
                 <p className="mt-2 text-3xl font-bold text-slate-900">{data.kpis.totalChecks7d}</p>
@@ -145,6 +166,13 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            <div className="mb-6 rounded-[8px] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <span className="font-bold">{data.kpis.sessionChecks || 0} session checks</span>
+              <span className="ml-2 text-blue-700">
+                with Caution or higher risk are included in this browser session.
+              </span>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Heatmap */}
               <div className="lg:col-span-1 bg-white p-5 rounded-[8px] border border-slate-200 shadow-sm flex flex-col items-center">
@@ -172,7 +200,7 @@ export default function DashboardPage() {
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-200">
                       {data.recentReports.map((report) => (
-                        <tr key={report.id} className="hover:bg-slate-50 transition-colors">
+                        <tr key={report.id} className="dashboard-report-row transition-colors hover:bg-slate-50 dark:hover:bg-[#1F2937]">
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">
                             {formatTimeAgo(report.timestamp)}
                           </td>
@@ -199,4 +227,192 @@ export default function DashboardPage() {
       </div>
     </main>
   );
+}
+
+function readSessionReports(): IntelligenceReport[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_CASES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((report): report is IntelligenceReport => (
+      typeof report?.id === "string" &&
+      typeof report.timestamp === "string" &&
+      typeof report.city === "string" &&
+      typeof report.category === "string" &&
+      typeof report.risk_level === "string" &&
+      report.risk_level.toLowerCase() !== "low" &&
+      typeof report.risk_score === "number" &&
+      typeof report.signal_count === "number"
+    ));
+  } catch {
+    return [];
+  }
+}
+
+function mergeSessionData(seedData: IntelligenceData, sessionReports: IntelligenceReport[]): IntelligenceData {
+  const eligibleSessionReports = sessionReports.filter((report) => report.risk_level.toLowerCase() !== "low");
+
+  if (eligibleSessionReports.length === 0) {
+    return {
+      ...seedData,
+      kpis: {
+        ...seedData.kpis,
+        sessionChecks: 0
+      }
+    };
+  }
+
+  const recentSessionReports = eligibleSessionReports.filter(isWithin7Days);
+  const cityStats = mergeCityStats(seedData.cityStats, eligibleSessionReports);
+
+  return {
+    kpis: {
+      totalChecks7d: seedData.kpis.totalChecks7d + recentSessionReports.length,
+      emergencyCount7d: seedData.kpis.emergencyCount7d + recentSessionReports.filter((report) => report.risk_level.toLowerCase() === "emergency").length,
+      topCategory: topCategoryWithSession(seedData.kpis.topCategory, recentSessionReports),
+      mostAffectedCity: topCityFromStats(cityStats),
+      sessionChecks: eligibleSessionReports.length
+    },
+    cityStats,
+    recentReports: [...eligibleSessionReports, ...seedData.recentReports.filter((report) => report.risk_level.toLowerCase() !== "low")]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 10)
+  };
+}
+
+function countBy(reports: IntelligenceReport[], getKey: (report: IntelligenceReport) => string) {
+  return reports.reduce<Record<string, number>>((counts, report) => {
+    const key = getKey(report);
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function topKey(counts: Record<string, number>) {
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
+}
+
+function topCategoryWithSession(seedTopCategory: string, sessionReports: IntelligenceReport[]) {
+  const sessionTop = topKey(countBy(sessionReports, (report) => report.category));
+  return sessionTop === "N/A" ? seedTopCategory : sessionTop;
+}
+
+function topCityFromStats(cityStats: IntelligenceData["cityStats"]) {
+  return Object.entries(cityStats).sort((a, b) => b[1].total - a[1].total)[0]?.[0] || "N/A";
+}
+
+function mergeCityStats(seedStats: IntelligenceData["cityStats"], sessionReports: IntelligenceReport[]): IntelligenceData["cityStats"] {
+  const merged: IntelligenceData["cityStats"] = Object.fromEntries(
+    Object.entries(seedStats).map(([city, stats]) => [city, normalizeCityStats(stats)])
+  );
+  const sessionByCity = sessionReports.reduce<Record<string, IntelligenceReport[]>>((groups, report) => {
+    groups[report.city] ??= [];
+    groups[report.city].push(report);
+    return groups;
+  }, {});
+
+  for (const [city, reports] of Object.entries(sessionByCity)) {
+    const current = merged[city] || normalizeCityStats({ total: 0, emergency: 0, topCategory: "N/A", maxRiskLevel: "Low" });
+    const sessionMaxScore = Math.max(...reports.map((report) => report.risk_score));
+    const total = current.total + reports.length;
+    const riskCounts = { ...normalizeRiskCounts(current.riskCounts, current.emergency) };
+    const categoryCounts = { ...(current.categoryCounts || {}) };
+    let riskScoreTotal = (current.averageRiskScore || riskScoreFromLevel(current.mapRiskLevel || current.maxRiskLevel)) * current.total;
+
+    for (const report of reports) {
+      riskCounts[riskBucket(report.risk_level)] += 1;
+      categoryCounts[report.category] = (categoryCounts[report.category] || 0) + 1;
+      riskScoreTotal += report.risk_score;
+    }
+
+    const averageRiskScore = total > 0 ? riskScoreTotal / total : 0;
+
+    merged[city] = {
+      total,
+      emergency: riskCounts.Emergency,
+      topCategory: topKey(categoryCounts),
+      maxRiskLevel: higherRiskLevel(current.maxRiskLevel, riskLevelFromScore(sessionMaxScore)),
+      mapRiskLevel: dominantRiskLevel(riskCounts),
+      averageRiskScore,
+      riskCounts,
+      categoryCounts
+    };
+  }
+
+  return merged;
+}
+
+function normalizeCityStats(stats: CityStats): CityStats {
+  const riskCounts = normalizeRiskCounts(stats.riskCounts, stats.emergency);
+  const categoryCounts = stats.categoryCounts || (stats.topCategory !== "N/A" ? { [stats.topCategory]: stats.total } : {});
+  const averageRiskScore = stats.averageRiskScore ?? riskScoreFromCounts(riskCounts, stats.total, stats.maxRiskLevel);
+
+  return {
+    ...stats,
+    riskCounts,
+    categoryCounts,
+    averageRiskScore,
+    mapRiskLevel: stats.mapRiskLevel || dominantRiskLevel(riskCounts)
+  };
+}
+
+function normalizeRiskCounts(counts?: Partial<RiskCounts>, emergency = 0): RiskCounts {
+  return {
+    Low: counts?.Low || 0,
+    Caution: counts?.Caution || 0,
+    High: counts?.High || 0,
+    Emergency: counts?.Emergency ?? emergency
+  };
+}
+
+function riskBucket(level: string): keyof RiskCounts {
+  switch (level.toLowerCase()) {
+    case "emergency": return "Emergency";
+    case "high": return "High";
+    case "caution": return "Caution";
+    default: return "Low";
+  }
+}
+
+function riskScoreFromCounts(counts: RiskCounts, total: number, fallbackLevel: string) {
+  if (total <= 0) return riskScoreFromLevel(fallbackLevel);
+  return (
+    counts.Low * riskScoreFromLevel("Low") +
+    counts.Caution * riskScoreFromLevel("Caution") +
+    counts.High * riskScoreFromLevel("High") +
+    counts.Emergency * riskScoreFromLevel("Emergency")
+  ) / total;
+}
+
+function dominantRiskLevel(counts: RiskCounts) {
+  const order: Array<keyof RiskCounts> = ["Emergency", "High", "Caution", "Low"];
+  return order.sort((a, b) => counts[b] - counts[a])[0];
+}
+
+function isWithin7Days(report: IntelligenceReport) {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  return new Date(report.timestamp) >= sevenDaysAgo;
+}
+
+function higherRiskLevel(a: string, b: string) {
+  return riskScoreFromLevel(a) >= riskScoreFromLevel(b) ? a : b;
+}
+
+function riskLevelFromScore(score: number) {
+  if (score >= 90) return "Emergency";
+  if (score >= 70) return "High";
+  if (score >= 45) return "Caution";
+  return "Low";
+}
+
+function riskScoreFromLevel(level: string) {
+  if (level.toLowerCase() === "emergency") return 90;
+  if (level.toLowerCase() === "high") return 70;
+  if (level.toLowerCase() === "caution") return 45;
+  return 20;
 }

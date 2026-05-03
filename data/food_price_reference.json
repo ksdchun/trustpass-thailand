@@ -78,6 +78,20 @@
         }
       },
       {
+        "id": "drunken_noodles_seafood",
+        "label": "Drunken noodles seafood",
+        "category": "seafood_noodle",
+        "keywords": ["drunken noodles seafood", "drunken noodles", "wide rice noodles, seafood", "ผัดขี้เมาทะเล"],
+        "notes": "Seafood drunken noodles can be materially more expensive than a basic noodle dish, especially at premium or famous venues.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [80, 180],
+          "local_casual_restaurant": [150, 320],
+          "mall_food_court": [120, 280],
+          "department_store_restaurant": [300, 650],
+          "premium_famous_venue": [500, 1500]
+        }
+      },
+      {
         "id": "noodle_soup",
         "label": "Noodle soup",
         "category": "noodle",
@@ -145,6 +159,34 @@
           "mall_food_court": [150, 350],
           "department_store_restaurant": [350, 900],
           "premium_famous_venue": [1000, 4000]
+        }
+      },
+      {
+        "id": "crab_curry",
+        "label": "Crab curry",
+        "category": "seafood",
+        "keywords": ["crab curry", "แกงปู"],
+        "notes": "Crab curry is seafood-heavy and can be premium-priced at famous seafood venues.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [100, 220],
+          "local_casual_restaurant": [220, 500],
+          "mall_food_court": [180, 400],
+          "department_store_restaurant": [450, 900],
+          "premium_famous_venue": [800, 2200]
+        }
+      },
+      {
+        "id": "stir_fried_morning_glory",
+        "label": "Stir-fried morning glory",
+        "category": "vegetable",
+        "keywords": ["stir-fried morning glory", "morning glory", "ผัดผักบุ้งไฟแดง", "ผัดผักบุ้ง"],
+        "notes": "A vegetable side dish is usually much cheaper than crab or seafood dishes, even at premium venues.",
+        "typical_baht_by_tier": {
+          "street_food_local_stall": [40, 90],
+          "local_casual_restaurant": [70, 160],
+          "mall_food_court": [60, 130],
+          "department_store_restaurant": [120, 250],
+          "premium_famous_venue": [120, 350]
         }
       },
       {

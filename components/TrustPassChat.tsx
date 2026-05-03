@@ -11,7 +11,6 @@ import {
   Download,
   FileText,
   Image as ImageIcon,
-  Languages,
   LocateFixed,
   Loader2,
   MapPin,
@@ -38,12 +37,6 @@ import type {
 } from "@/lib/types";
 
 const cities = ["Bangkok", "Phuket", "Pattaya", "Chiang Mai"];
-const languageOptions: Array<{ value: Language; label: string }> = [
-  { value: "English", label: "English" },
-  { value: "Chinese", label: "中文" },
-  { value: "Thai", label: "ไทย" }
-];
-
 const demoLocations: Array<{ id: string; label: string; location: UserLocation | null }> = [
   { id: "none", label: "No mock location", location: null },
   {
@@ -109,6 +102,8 @@ const loadingStages = [
 ];
 
 type PendingClarification = Extract<SituationAnalyzeResponse, { status: "needs_clarification" }>;
+type PendingMismatch = Extract<SituationAnalyzeResponse, { status: "evidence_mismatch" }>;
+type OutOfScopeSituation = Extract<SituationAnalyzeResponse, { status: "out_of_scope" }>;
 type CompletedSituation = Extract<SituationAnalyzeResponse, { status: "completed" }>;
 
 type RiskTheme = {
@@ -160,8 +155,28 @@ const riskTheme: Record<RiskLevel, RiskTheme> = {
   }
 };
 
-function riskScoreFor(level: RiskLevel): number {
-  return level === "Emergency" ? 94 : level === "High" ? 74 : level === "Caution" ? 42 : 18;
+function riskScoreFor(result: RiskCheckResult): number {
+  if (result.risk_level === "Emergency") return 94;
+
+  const base = result.risk_level === "High" ? 74 : result.risk_level === "Caution" ? 42 : 18;
+  const maxAllowed = result.risk_level === "High" ? 89 : result.risk_level === "Caution" ? 69 : 34;
+  const ratioScore = scoreFromGroundingRatios(result, base);
+  return Math.min(maxAllowed, Math.max(base, ratioScore));
+}
+
+function scoreFromGroundingRatios(result: RiskCheckResult, base: number) {
+  const fareSignal = result.grounding?.find((signal) => signal.tool === "fare_reference");
+  const foodSignal = result.grounding?.find((signal) => signal.tool === "food_price_reference");
+  const damageSignal = result.grounding?.find((signal) => signal.tool === "damage_claim_reference");
+  const fareRatio = asNumber(fareSignal?.metadata?.fare_ratio_to_baseline);
+  const foodRatio = asNumber(foodSignal?.metadata?.max_price_ratio_to_reference);
+  const damageRatio = asNumber(damageSignal?.metadata?.amount_ratio_to_minor_damage_reference);
+
+  const candidates = [base];
+  if (fareRatio !== null) candidates.push(Math.round(30 + Math.min(58, fareRatio * 6)));
+  if (foodRatio !== null) candidates.push(Math.round(30 + Math.min(55, foodRatio * 4)));
+  if (damageRatio !== null) candidates.push(Math.round(35 + Math.min(50, damageRatio * 8)));
+  return Math.max(...candidates);
 }
 
 type ActionPriority = "immediate" | "soon" | "preventive";
@@ -189,7 +204,7 @@ const priorityStyles: Record<ActionPriority, { label: string; bg: string; text: 
 export function TrustPassChat() {
   const [message, setMessage] = useState("");
   const [city, setCity] = useState("Bangkok");
-  const [language, setLanguage] = useState<Language>("English");
+  const language: Language = "English";
   const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [demoLocationId, setDemoLocationId] = useState("none");
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -203,6 +218,8 @@ export function TrustPassChat() {
   const [stageIndex, setStageIndex] = useState(0);
   const [result, setResult] = useState<RiskCheckResult | null>(null);
   const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(null);
+  const [pendingMismatch, setPendingMismatch] = useState<PendingMismatch | null>(null);
+  const [outOfScope, setOutOfScope] = useState<OutOfScopeSituation | null>(null);
   const [pendingRequest, setPendingRequest] = useState<SituationAnalyzeRequest | null>(null);
   const [clarificationAnswer, setClarificationAnswer] = useState("");
   const [resultKey, setResultKey] = useState(0);
@@ -240,6 +257,8 @@ export function TrustPassChat() {
     setExtractedText("");
     setEvidenceResult(null);
     setPendingClarification(null);
+    setPendingMismatch(null);
+    setOutOfScope(null);
     setClarificationAnswer("");
   }
 
@@ -262,6 +281,8 @@ export function TrustPassChat() {
     setMessage(text);
     setErrorMessage(null);
     setPendingClarification(null);
+    setPendingMismatch(null);
+    setOutOfScope(null);
     setClarificationAnswer("");
     if (result) {
       setResult(null);
@@ -279,6 +300,8 @@ export function TrustPassChat() {
     setEvidenceResult(null);
     setResult(null);
     setPendingClarification(null);
+    setPendingMismatch(null);
+    setOutOfScope(null);
     setPendingRequest(null);
     setClarificationAnswer("");
     setErrorMessage(null);
@@ -299,6 +322,28 @@ export function TrustPassChat() {
     if (payload.status === "needs_clarification") {
       setPendingRequest(body);
       setPendingClarification(payload);
+      setPendingMismatch(null);
+      setOutOfScope(null);
+      setClarificationAnswer("");
+      setResult(null);
+      return;
+    }
+
+    if (payload.status === "evidence_mismatch") {
+      setPendingRequest(body);
+      setPendingMismatch(payload);
+      setPendingClarification(null);
+      setOutOfScope(null);
+      setClarificationAnswer("");
+      setResult(null);
+      return;
+    }
+
+    if (payload.status === "out_of_scope") {
+      setOutOfScope(payload);
+      setPendingRequest(null);
+      setPendingClarification(null);
+      setPendingMismatch(null);
       setClarificationAnswer("");
       setResult(null);
       return;
@@ -307,6 +352,8 @@ export function TrustPassChat() {
     const nextResult = situationToRiskResult(payload);
     persistCase(nextResult, body.city);
     setPendingClarification(null);
+    setPendingMismatch(null);
+    setOutOfScope(null);
     setPendingRequest(null);
     setClarificationAnswer("");
     setResult(nextResult);
@@ -336,6 +383,37 @@ export function TrustPassChat() {
     }
   }
 
+  async function answerEvidenceMismatch(answer: string) {
+    if (!pendingRequest || !pendingMismatch || isChecking) return;
+    if (answer === "I will upload the correct evidence") {
+      setFile(null);
+      setExtractedText("");
+      setEvidenceResult(null);
+      setPendingMismatch(null);
+      setPendingRequest(null);
+      setErrorMessage(null);
+      setTimeout(() => fileInputRef.current?.click(), 0);
+      return;
+    }
+
+    setIsChecking(true);
+    setErrorMessage(null);
+
+    try {
+      await runSituationAnalysis({
+        ...pendingRequest,
+        clarificationAnswers: {
+          ...(pendingRequest.clarificationAnswers || {}),
+          evidence_choice: answer
+        }
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Could not continue this check. Please try again.");
+    } finally {
+      setIsChecking(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if ((!message.trim() && !file) || isChecking) return;
@@ -345,11 +423,12 @@ export function TrustPassChat() {
 
     try {
       let extracted = "";
+      let extractData: EvidenceExtractResult | null = null;
       if (file) {
         const formData = new FormData();
         formData.append("file", file);
         const extractResponse = await fetch("/api/extract", { method: "POST", body: formData });
-        const extractData = (await extractResponse.json()) as EvidenceExtractResult;
+        extractData = (await extractResponse.json()) as EvidenceExtractResult;
         extracted = extractData.extractedText || "";
         setEvidenceResult(extractData);
         setExtractedText(extracted);
@@ -361,6 +440,14 @@ export function TrustPassChat() {
         language,
         incidentDateIso: new Date(`${incidentDate}T12:00:00+07:00`).toISOString(),
         evidenceText: extracted,
+        evidenceRelevance: extractData?.detectedFields
+          ? {
+              topic: extractData.detectedFields.evidence_topic,
+              relevance: extractData.detectedFields.relevance,
+              reason: extractData.detectedFields.relevance_reason,
+              usable_as_case_evidence: extractData.detectedFields.usable_as_case_evidence
+            }
+          : undefined,
         userLocation: userLocation ?? undefined,
         attachmentsMetadata: file ? [{ name: file.name, type: file.type, size: file.size }] : []
       };
@@ -410,8 +497,6 @@ export function TrustPassChat() {
       <ContextBar
         city={city}
         setCity={setCity}
-        language={language}
-        setLanguage={setLanguage}
         incidentDate={incidentDate}
         setIncidentDate={setIncidentDate}
         demoLocationId={demoLocationId}
@@ -461,6 +546,10 @@ export function TrustPassChat() {
               setAnswer={setClarificationAnswer}
               onAnswer={answerClarification}
             />
+          ) : pendingMismatch ? (
+            <EvidenceMismatchPanel mismatch={pendingMismatch} onAnswer={answerEvidenceMismatch} />
+          ) : outOfScope ? (
+            <OutOfScopePanel response={outOfScope} onPickSample={handlePickSample} />
           ) : result ? (
             <ResultPanel key={resultKey} result={result} city={city} onNewCheck={handleNewCheck} />
           ) : (
@@ -475,8 +564,6 @@ export function TrustPassChat() {
 type ContextBarProps = {
   city: string;
   setCity: (v: string) => void;
-  language: Language;
-  setLanguage: (v: Language) => void;
   incidentDate: string;
   setIncidentDate: (v: string) => void;
   demoLocationId: string;
@@ -490,8 +577,6 @@ type ContextBarProps = {
 function ContextBar({
   city,
   setCity,
-  language,
-  setLanguage,
   incidentDate,
   setIncidentDate,
   demoLocationId,
@@ -504,7 +589,7 @@ function ContextBar({
   return (
     <section className="mb-5 rounded-lg border border-[#E1E1E1] bg-white p-3 shadow-card">
       <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Field label="City" icon={<MapPin className="h-3.5 w-3.5" />}>
             <select
               value={city}
@@ -513,19 +598,6 @@ function ContextBar({
             >
               {cities.map((c) => (
                 <option key={c}>{c}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Language" icon={<Languages className="h-3.5 w-3.5" />}>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value as Language)}
-              className="w-full rounded-md border border-[#E1E1E1] bg-white px-2 py-2 text-xs text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
-            >
-              {languageOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
               ))}
             </select>
           </Field>
@@ -794,6 +866,12 @@ function ClarificationPanel({
   setAnswer: (value: string) => void;
   onAnswer: (answer: string) => void;
 }) {
+  const visibleSuggestions = clarification.suggested_answers.filter((suggested) => {
+    if (clarification.clarification_key !== "venue_location") return true;
+    return !/share.*restaurant name|type.*restaurant name|can share.*location|can type/i.test(suggested);
+  });
+  const isVenueLocation = clarification.clarification_key === "venue_location";
+
   return (
     <article className="animate-fadein rounded-lg border border-[#E1E1E1] bg-white p-6 shadow-card sm:p-7">
       <div className="flex items-start gap-3">
@@ -807,21 +885,25 @@ function ClarificationPanel({
         </div>
       </div>
 
-      <div className="mt-6 grid gap-2">
-        {clarification.suggested_answers.map((suggested) => (
-          <button
-            key={suggested}
-            type="button"
-            onClick={() => onAnswer(suggested)}
-            className="rounded-md border border-[#E1E1E1] bg-white px-4 py-3 text-left text-sm font-medium text-[#242424] transition hover:border-[#0078D4] hover:bg-[#F5FAFD] hover:text-[#0078D4]"
-          >
-            {suggested}
-          </button>
-        ))}
-      </div>
+      {visibleSuggestions.length > 0 && (
+        <div className="mt-6 grid gap-2">
+          {visibleSuggestions.map((suggested) => (
+            <button
+              key={suggested}
+              type="button"
+              onClick={() => onAnswer(suggested)}
+              className="rounded-md border border-[#E1E1E1] bg-white px-4 py-3 text-left text-sm font-medium text-[#242424] transition hover:border-[#0078D4] hover:bg-[#F5FAFD] hover:text-[#0078D4]"
+            >
+              {suggested}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mt-5 rounded-md border border-[#E1E1E1] bg-[#FAFAFA] p-3">
-        <label className="text-xs font-semibold uppercase tracking-wider text-[#616161]">Or type an answer</label>
+        <label className="text-xs font-semibold uppercase tracking-wider text-[#616161]">
+          {isVenueLocation ? "Type the restaurant or venue name" : "Or type an answer"}
+        </label>
         <div className="mt-2 flex gap-2">
           <input
             value={answer}
@@ -829,7 +911,7 @@ function ClarificationPanel({
             onKeyDown={(event) => {
               if (event.key === "Enter") onAnswer(answer);
             }}
-            placeholder="Type the restaurant name, venue context, or account detail"
+            placeholder={isVenueLocation ? "Example: Jay Fai, Siam Paragon food court, local street stall" : "Type the restaurant name, venue context, or account detail"}
             className="min-w-0 flex-1 rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
           />
           <button
@@ -846,9 +928,92 @@ function ClarificationPanel({
   );
 }
 
+function EvidenceMismatchPanel({ mismatch, onAnswer }: { mismatch: PendingMismatch; onAnswer: (answer: string) => void }) {
+  return (
+    <article className="animate-fadein rounded-lg border border-[#E1E1E1] bg-white p-6 shadow-card sm:p-7">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#FFF4CE] text-[#7A5A00]">
+          <AlertTriangle className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#7A5A00]">Evidence mismatch</p>
+          <h2 className="mt-2 text-xl font-semibold leading-snug text-[#242424]">{mismatch.question}</h2>
+          <p className="mt-3 text-sm leading-relaxed text-[#616161]">{mismatch.reason}</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-xl bg-[#EFF6FC] px-2.5 py-1 font-semibold text-[#0B5394]">
+              Message: {formatEvidenceTopic(mismatch.message_topic)}
+            </span>
+            <span className="rounded-xl bg-[#FBEAE0] px-2.5 py-1 font-semibold text-[#B5340A]">
+              Evidence: {formatEvidenceTopic(mismatch.evidence_topic)}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-6 grid gap-2">
+        {mismatch.suggested_answers.map((suggested) => (
+          <button
+            key={suggested}
+            type="button"
+            onClick={() => onAnswer(suggested)}
+            className="rounded-md border border-[#E1E1E1] bg-white px-4 py-3 text-left text-sm font-medium text-[#242424] transition hover:border-[#0078D4] hover:bg-[#F5FAFD] hover:text-[#0078D4]"
+          >
+            {suggested}
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function OutOfScopePanel({ response, onPickSample }: { response: OutOfScopeSituation; onPickSample: (text: string) => void }) {
+  return (
+    <article className="animate-fadein rounded-lg border border-[#E1E1E1] bg-white p-6 shadow-card sm:p-7">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EFF6FC] text-[#0078D4]">
+          <ShieldCheck className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#0078D4]">Outside TrustPass scope</p>
+          <h2 className="mt-2 text-xl font-semibold leading-snug text-[#242424]">This does not look like a tourist scam or safety check.</h2>
+          <p className="mt-3 text-sm leading-relaxed text-[#616161]">{response.message}</p>
+          {response.evidence_relevance && (
+            <p className="mt-3 rounded-md bg-[#FAFAFA] px-3 py-2 text-xs leading-relaxed text-[#616161]">
+              Evidence: {response.evidence_relevance.reason}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="mt-6 grid gap-2">
+        {response.suggested_next_inputs.map((suggested) => (
+          <button
+            key={suggested}
+            type="button"
+            onClick={() => onPickSample(suggested)}
+            className="rounded-md border border-[#E1E1E1] bg-white px-4 py-3 text-left text-sm font-medium text-[#242424] transition hover:border-[#0078D4] hover:bg-[#F5FAFD] hover:text-[#0078D4]"
+          >
+            {suggested}
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function EvidenceReadout({ evidence }: { evidence: EvidenceExtractResult }) {
   const { detectedFields } = evidence;
   const sourceLabel = detectedFields.source === "azure-document-intelligence" ? "Azure Document Intelligence" : "Demo fallback extraction";
+  const relevanceLabel =
+    detectedFields.relevance === "relevant"
+      ? "Relevant evidence"
+      : detectedFields.relevance === "weak"
+        ? "Weak OCR"
+        : "Ignored as unrelated";
+  const relevanceClass =
+    detectedFields.relevance === "relevant"
+      ? "border-[#CFE8D1] bg-[#F1FAF1] text-[#107C10]"
+      : detectedFields.relevance === "weak"
+        ? "border-[#F7E5A1] bg-[#FFF8D6] text-[#7A5A00]"
+        : "border-[#E1E1E1] bg-[#FAFAFA] text-[#616161]";
   const hintRows = [
     ["Prices", detectedFields.hints.prices],
     ["Accounts", detectedFields.hints.account_names],
@@ -866,6 +1031,15 @@ function EvidenceReadout({ evidence }: { evidence: EvidenceExtractResult }) {
           {sourceLabel}
         </span>
       </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <span className={`rounded-xl border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${relevanceClass}`}>
+          {relevanceLabel}
+        </span>
+        <span className="rounded-xl border border-[#E1E1E1] bg-[#FAFAFA] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#616161]">
+          {formatEvidenceTopic(detectedFields.evidence_topic)}
+        </span>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-[#616161]">{detectedFields.relevance_reason}</p>
       {detectedFields.note && (
         <p className="mt-2 rounded-md bg-[#FFF4CE] px-2.5 py-1.5 text-[11px] leading-relaxed text-[#7A5A00]">
           {detectedFields.note}
@@ -926,7 +1100,7 @@ function ResultSkeleton({ stage }: { stage: string }) {
 
 function ResultPanel({ result, city, onNewCheck }: { result: RiskCheckResult; city: string; onNewCheck: () => void }) {
   const theme = riskTheme[result.risk_level];
-  const score = riskScoreFor(result.risk_level);
+  const score = riskScoreFor(result);
   const [showLargePhrase, setShowLargePhrase] = useState(false);
 
   return (
@@ -984,6 +1158,7 @@ type PriceComparison = {
   normal_range_baht: [number, number];
   tier_label: string;
   result: "within" | "above" | "far_above";
+  price_ratio_to_reference?: number;
   confidence: "low" | "medium" | "high";
   explanation: string;
 };
@@ -1057,10 +1232,11 @@ function GroundingDetailsSection({ result }: { result: RiskCheckResult }) {
                 {taxiGrounding.source === "azure_maps" ? "Azure Maps" : taxiGrounding.source === "curated" ? "Curated estimate" : "Fallback"}
               </span>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
               <Metric label="Distance" value={taxiGrounding.distance ? `${taxiGrounding.distance.toFixed(1)} km` : "Unknown"} />
               <Metric label="Expected meter" value={taxiGrounding.estimate ? `${taxiGrounding.estimate[0]}-${taxiGrounding.estimate[1]} THB` : "Rule only"} />
               <Metric label="Quoted fare" value={taxiGrounding.quoted ? `${taxiGrounding.quoted} THB` : "Not provided"} />
+              <Metric label="Over baseline" value={taxiGrounding.ratio ? `${taxiGrounding.ratio}x` : "Unknown"} />
             </div>
           </div>
         )}
@@ -1224,15 +1400,25 @@ function buildRentalDocumentCard(signal?: GroundingSignal): CaseGuidanceCard | n
 
 function buildDamageClaimCard(signal?: GroundingSignal): CaseGuidanceCard | null {
   if (!signal) return null;
+  const amount = asNumber(signal.metadata?.damage_amount_baht);
+  const severity = asString(signal.metadata?.damage_amount_severity);
+  const ratio = asNumber(signal.metadata?.amount_ratio_to_minor_damage_reference);
   return {
     title: "Rental damage dispute",
     summary: "The product separates legitimate damage claims from pressure patterns: large immediate cash demands, no receipt, and no neutral inspection.",
     badge: "Damage claim",
     checks: [
       {
+        label: "Demand amount",
+        value: amount ? `${amount.toLocaleString("en-US")} THB${ratio ? `, about ${ratio}x the demo minor-damage threshold` : ""}.` : "No amount detected.",
+        active: Boolean(amount && severity && ["large", "extreme"].includes(severity))
+      },
+      {
         label: "Cash demand",
-        value: asBoolean(signal.metadata?.has_large_cash_demand) ? "Large immediate cash demand detected." : "No large cash amount detected.",
-        active: asBoolean(signal.metadata?.has_large_cash_demand)
+        value: asBoolean(signal.metadata?.has_large_cash_demand) || asBoolean(signal.metadata?.has_immediate_cash_payment)
+          ? "Immediate or large cash demand detected."
+          : "No large immediate cash demand detected.",
+        active: asBoolean(signal.metadata?.has_large_cash_demand) || asBoolean(signal.metadata?.has_immediate_cash_payment)
       },
       {
         label: "Receipt",
@@ -1335,6 +1521,7 @@ function getTaxiGrounding(fareMetadata?: Record<string, unknown>, routeMetadata?
   const estimate = asNumberPair(fareMetadata?.taxi_meter_estimate_baht ?? fareMetadata?.baseline_range_baht);
   const distance = asNumber(routeMetadata?.route_distance_km ?? fareMetadata?.route_distance_km);
   const quoted = asNumber(fareMetadata?.quoted_fare_baht);
+  const ratio = asNumber(fareMetadata?.fare_ratio_to_baseline);
   const source = asString(routeMetadata?.grounding_source ?? fareMetadata?.grounding_source) || "fallback";
 
   if (!estimate && !distance && !quoted) return null;
@@ -1343,6 +1530,7 @@ function getTaxiGrounding(fareMetadata?: Record<string, unknown>, routeMetadata?
     estimate,
     distance,
     quoted,
+    ratio,
     source,
     origin: asString(routeMetadata?.route_origin ?? fareMetadata?.route_origin),
     destination: asString(routeMetadata?.route_destination ?? fareMetadata?.route_destination)
@@ -1890,7 +2078,7 @@ function FooterDisclaimer({ source }: { source: RiskCheckResult["source"] }) {
       </p>
       <p className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-[#107C10]">
         <CheckCircle2 className="h-3 w-3" />
-        Anonymized signal contributed to TAT regional intelligence
+        Eligible Caution-or-higher signals can contribute to regional intelligence
         <span className="ml-2 rounded-xl border border-[#E1E1E1] bg-white px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#616161]">
           {source === "azure-openai" ? "Azure OpenAI" : "Local rule engine"}
         </span>
@@ -1917,13 +2105,52 @@ function situationToRiskResult(response: CompletedSituation): RiskCheckResult {
 
 function persistCase(result: RiskCheckResult, city: string) {
   if (typeof window === "undefined") return;
+  if (!isDashboardEligible(result)) return;
+
+  const now = new Date().toISOString();
+  const sessionReport = {
+    id: `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: now,
+    city,
+    category: result.category,
+    risk_level: result.risk_level,
+    risk_score: riskScoreFor(result),
+    signal_count: result.suspicious_signals?.length || 0
+  };
+
+  const sessionExisting = JSON.parse(window.sessionStorage.getItem("trustpass-session-cases") || "[]");
+  sessionExisting.unshift(sessionReport);
+  window.sessionStorage.setItem("trustpass-session-cases", JSON.stringify(sessionExisting.slice(0, 50)));
+
   const existing = JSON.parse(window.localStorage.getItem("trustpass-cases") || "[]");
   existing.unshift({
     city,
     category: result.category,
     riskLevel: result.risk_level,
     signals: result.suspicious_signals,
-    createdAt: new Date().toISOString()
+    createdAt: now
   });
   window.localStorage.setItem("trustpass-cases", JSON.stringify(existing.slice(0, 20)));
+}
+
+function isDashboardEligible(result: RiskCheckResult) {
+  if (result.risk_level === "Low") return false;
+  if (result.category === "No strong scam pattern detected") return false;
+  if (result.category === "Outside TrustPass scope") return false;
+  if (result.category === "Evidence mismatch") return false;
+  return true;
+}
+
+function formatEvidenceTopic(topic: string) {
+  const labels: Record<string, string> = {
+    transport: "Taxi / transport",
+    food_menu: "Food / menu",
+    tour_payment: "Tour payment",
+    qr_payment: "QR payment",
+    rental_document: "Rental document",
+    damage_claim: "Damage claim",
+    job_lure: "Job / casting risk",
+    unknown: "Unknown"
+  };
+  return labels[topic] || "Unknown";
 }

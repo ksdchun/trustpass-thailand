@@ -25,7 +25,7 @@ TrustPass gives tourists a mobile-friendly universal chat interface where they c
 
 - describe what is happening in natural language
 - attach evidence such as screenshots, receipts, contracts, menus, QR payment screens, or chat logs
-- provide city, date, language, and location context
+- provide city, date, and optional location context
 - receive a grounded scam/fraud risk assessment
 
 The result includes:
@@ -46,12 +46,14 @@ The result includes:
 2. Tourist describes the suspicious situation.
 3. Tourist optionally uploads evidence.
 4. Azure AI Document Intelligence extracts OCR text from evidence when configured.
-5. Local deterministic grounding tools run first.
-6. If context is genuinely ambiguous, `/api/situation/analyze` returns `needs_clarification`.
-7. The UI asks one follow-up question with suggested answers.
-8. After clarification, the backend returns a completed result.
-9. Azure OpenAI is used for final reasoning/generation when configured; local fallback keeps the demo usable.
-10. Completed checks are recorded into the demo intelligence dashboard.
+5. Local deterministic scope, evidence-consistency, and grounding tools run first.
+6. If the input is unrelated, the app returns `out_of_scope` instead of forcing a scam score.
+7. If typed situation and uploaded evidence conflict, the app returns `evidence_mismatch` and asks which case to analyze.
+8. If context is genuinely ambiguous, `/api/situation/analyze` returns `needs_clarification`.
+9. The UI asks one follow-up question with suggested answers or a free-text answer.
+10. After clarification, the backend returns a completed result.
+11. Azure OpenAI is used for final reasoning/generation when configured; local fallback keeps the demo usable.
+12. Only eligible `Caution`, `High`, and `Emergency` checks are recorded into the demo intelligence dashboard.
 
 ## Core Backend Design
 
@@ -61,8 +63,8 @@ Main APIs:
 
 - `POST /api/situation/analyze`
   - Main rich analysis endpoint.
-  - Supports clarification responses.
-  - Records only completed checks.
+  - Supports clarification, out-of-scope, and evidence-mismatch responses.
+  - Records only completed checks with `Caution` or higher risk.
 - `POST /api/risk-check`
   - Backward-compatible legacy endpoint.
   - Returns the original `RiskCheckResult` shape.
@@ -79,6 +81,7 @@ Important response behavior:
 - QR/account ambiguity can ask whether the account matches the business.
 - Clear High/Emergency non-food cases bypass clarification.
 - Low-risk cases avoid police escalation.
+- Low-risk, out-of-scope, and evidence-mismatch-only responses are not counted in dashboard intelligence.
 
 ## Grounding Tools Implemented
 

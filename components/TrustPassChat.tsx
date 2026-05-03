@@ -2341,13 +2341,13 @@ function IncidentReportSection({
   evidence: ReportEvidenceItem[];
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"english" | "thai">("thai");
+  const [tab, setTab] = useState<"english" | "thai">("english");
   const [copied, setCopied] = useState(false);
   const [reportStatus, setReportStatus] = useState("");
   const summary = result.incident_report_summary;
   const generatedAt = useMemo(() => new Date().toLocaleString(), []);
   const savedCount = evidence.filter((item) => item.saved || item.note.trim() || item.files.length > 0).length;
-  const reportHtml = buildIncidentReportHtml(result, city, evidence, generatedAt);
+  const reportHtml = buildIncidentReportHtml(result, city, evidence, generatedAt, tab);
 
   async function copyReport() {
     try {
@@ -2360,20 +2360,20 @@ function IncidentReportSection({
   }
 
   function generatePdf() {
-    setReportStatus("กำลังเปิดหน้าต่างพิมพ์ กรุณาเลือกบันทึกเป็น PDF หากต้องการไฟล์ PDF");
+    setReportStatus("Opening the print dialog. Choose Save as PDF if you want a PDF file.");
     try {
       printIncidentReport(reportHtml);
       window.setTimeout(() => {
-        setReportStatus("หากหน้าต่างพิมพ์ไม่แสดง ให้ใช้ปุ่มดาวน์โหลดรายงานด้านล่าง");
+        setReportStatus("If the print dialog does not appear, use the downloadable printable report button.");
       }, 800);
     } catch {
       downloadPrintableReport(reportHtml, result.category);
-      setReportStatus("ระบบพิมพ์ถูกบล็อก จึงดาวน์โหลดไฟล์รายงานสำหรับพิมพ์แทน");
+      setReportStatus("Printing was blocked, so a printable report file was downloaded instead.");
     }
   }
 
   return (
-    <Section title="Incident report / รายงานเหตุการณ์">
+    <Section title="Incident report">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -2382,7 +2382,7 @@ function IncidentReportSection({
       >
         <span className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-[#0078D4]" />
-          View structured incident report / ดูรายงานสำหรับส่งต่อ
+          View structured incident report
         </span>
         <ChevronDown className={`h-4 w-4 text-[#616161] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
@@ -2390,29 +2390,34 @@ function IncidentReportSection({
         <div className="mt-3 animate-fadein rounded-md border border-[#E1E1E1] bg-white p-4">
           <div className="mb-3 inline-flex rounded-md border border-[#E1E1E1] bg-[#FAFAFA] p-0.5">
             <TabButton active={tab === "english"} onClick={() => setTab("english")}>English</TabButton>
-            <TabButton active={tab === "thai"} onClick={() => setTab("thai")}>ไทย</TabButton>
+            <TabButton active={tab === "thai"} onClick={() => setTab("thai")}>Thai</TabButton>
           </div>
           <p className="rounded-md bg-[#FAFAFA] px-3 py-3 text-sm leading-relaxed text-[#242424]">
             {tab === "english" ? summary.english : summary.thai}
           </p>
           <div className="mt-3 grid gap-2 text-xs text-[#616161]">
-            <p className="font-semibold uppercase tracking-wider text-[#616161]">ข้อมูลสำคัญ</p>
+            <p className="font-semibold uppercase tracking-wider text-[#616161]">
+              {tab === "english" ? "Key information" : "ข้อมูลสำคัญ"}
+            </p>
             <ul className="grid gap-1.5">
-              <KeyFact label="ประเภท" value={category} />
-              <KeyFact label="ระดับ" value={thaiRiskLevel(result.risk_level)} />
-              <KeyFact label="เมือง" value={city} />
-              <KeyFact label="หลักฐาน" value={`${savedCount}/${evidence.length}`} />
-              <KeyFact label="เวลา" value={generatedAt} />
+              <KeyFact label={tab === "english" ? "Category" : "ประเภท"} value={tab === "english" ? category : thaiCategory(category)} />
+              <KeyFact label={tab === "english" ? "Risk level" : "ระดับ"} value={tab === "english" ? result.risk_level : thaiRiskLevel(result.risk_level)} />
+              <KeyFact label={tab === "english" ? "City" : "เมือง"} value={city} />
+              <KeyFact label={tab === "english" ? "Evidence" : "หลักฐาน"} value={`${savedCount}/${evidence.length}`} />
+              <KeyFact label={tab === "english" ? "Time" : "เวลา"} value={generatedAt} />
             </ul>
           </div>
           <div className="mt-3 rounded-md border border-[#E1E1E1] bg-[#FAFAFA] p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#616161]">หลักฐานที่จะใส่ในรายงาน</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#616161]">
+              {tab === "english" ? "Evidence included in the report" : "หลักฐานที่จะใส่ในรายงาน"}
+            </p>
             <ul className="mt-2 grid gap-1.5 text-xs text-[#424242]">
               {evidence.map((item) => (
                 <li key={item.id}>
-                  <span className="font-semibold">{item.saved ? "บันทึกแล้ว" : "ยังไม่บันทึก"}:</span> {thaiEvidenceLabel(item.label)}
-                  {item.note ? ` - หมายเหตุ: ${item.note}` : ""}
-                  {item.files.length ? ` - ไฟล์: ${item.files.map((file) => file.name).join(", ")}` : ""}
+                  <span className="font-semibold">{item.saved ? (tab === "english" ? "Saved" : "บันทึกแล้ว") : (tab === "english" ? "Not saved" : "ยังไม่บันทึก")}:</span>{" "}
+                  {tab === "english" ? item.label : thaiEvidenceLabel(item.label)}
+                  {item.note ? ` - ${tab === "english" ? "Note" : "หมายเหตุ"}: ${item.note}` : ""}
+                  {item.files.length ? ` - ${tab === "english" ? "Files" : "ไฟล์"}: ${item.files.map((file) => file.name).join(", ")}` : ""}
                 </li>
               ))}
             </ul>
@@ -2432,18 +2437,18 @@ function IncidentReportSection({
               className="inline-flex items-center gap-1.5 rounded-md bg-[#0078D4] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#106EBE]"
             >
               <Download className="h-3.5 w-3.5" />
-              พิมพ์ / บันทึกเป็น PDF
+              Print / Save as PDF
             </button>
             <button
               type="button"
               onClick={() => {
                 downloadPrintableReport(reportHtml, result.category);
-                setReportStatus("ดาวน์โหลดไฟล์รายงานแล้ว เปิดไฟล์และเลือกพิมพ์หรือบันทึกเป็น PDF ได้");
+                setReportStatus("Printable report downloaded. Open it and choose Print or Save as PDF.");
               }}
               className="inline-flex items-center gap-1.5 rounded-md border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4]"
             >
               <FileText className="h-3.5 w-3.5" />
-              ดาวน์โหลดรายงานสำหรับพิมพ์
+              Download printable report
             </button>
           </div>
           {reportStatus && (
@@ -2587,6 +2592,20 @@ function buildPlainIncidentReport(
 }
 
 function buildIncidentReportHtml(
+  result: RiskCheckResult,
+  city: string,
+  evidence: ReportEvidenceItem[],
+  generatedAt: string,
+  language: "english" | "thai"
+) {
+  if (language === "english") {
+    return buildEnglishIncidentReportHtml(result, city, evidence, generatedAt);
+  }
+
+  return buildThaiIncidentReportHtml(result, city, evidence, generatedAt);
+}
+
+function buildThaiIncidentReportHtml(
   result: RiskCheckResult,
   city: string,
   evidence: ReportEvidenceItem[],
@@ -2767,7 +2786,194 @@ function buildIncidentReportHtml(
   <p class="footer">
     สร้างโดย TrustPass Thailand เพื่อช่วยจัดระเบียบข้อมูลจากนักท่องเที่ยวและหลักฐานที่เกี่ยวข้อง
   </p>
-  <button class="no-print" onclick="window.print()" style="margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 8px; background: #0078D4; color: white; font-weight: 700;">พิมพ์หรือบันทึกเป็น PDF</button>
+  <button class="no-print" onclick="window.print()" style="margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 8px; background: #0078D4; color: white; font-weight: 700;">Print / Save as PDF</button>
+</body>
+</html>`;
+}
+
+function buildEnglishIncidentReportHtml(
+  result: RiskCheckResult,
+  city: string,
+  evidence: ReportEvidenceItem[],
+  generatedAt: string
+) {
+  const savedEvidence = evidence.filter((item) => item.saved || item.note.trim() || item.files.length > 0);
+  const savedCount = savedEvidence.length;
+  const orderedEvidence = [...evidence].sort((a, b) => evidencePriority(b) - evidencePriority(a));
+  const hasImages = orderedEvidence.some((item) => item.files.some((file) => file.previewDataUrl));
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TrustPass Thailand Incident Report</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #242424;
+      background: #ffffff;
+      font-family: "Segoe UI", "Tahoma", Arial, sans-serif;
+      line-height: 1.45;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 3px solid #0078D4;
+      padding-bottom: 16px;
+      margin-bottom: 18px;
+    }
+    .brand { color: #0078D4; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    h1 { margin: 4px 0 0; font-size: 28px; line-height: 1.15; }
+    h2 { margin: 0 0 8px; font-size: 15px; }
+    p { margin: 0; }
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      background: ${riskReportColor(result.risk_level)};
+      color: #ffffff;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .meta div, .section {
+      border: 1px solid #E1E1E1;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .meta span {
+      display: block;
+      color: #605E5C;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .meta strong { display: block; margin-top: 4px; font-size: 13px; }
+    .section { margin-bottom: 12px; break-inside: avoid; }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 4px 0; }
+    .evidence-list {
+      display: grid;
+      gap: 10px;
+    }
+    .evidence-card {
+      border: 1px solid #E1E1E1;
+      border-radius: 8px;
+      padding: 10px;
+      break-inside: avoid;
+    }
+    .evidence-title {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+    }
+    .evidence-title strong { font-size: 13px; }
+    .evidence-note { color: #605E5C; font-size: 12px; margin-top: 6px; }
+    .file-list { color: #605E5C; font-size: 11px; margin-top: 6px; padding-left: 18px; }
+    .image-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 8px;
+    }
+    .evidence-image {
+      border: 1px solid #E1E1E1;
+      border-radius: 8px;
+      max-height: 260px;
+      object-fit: contain;
+      width: 100%;
+      background: #FAFAFA;
+    }
+    .saved, .pending {
+      border-radius: 999px;
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+    }
+    .saved { background: #E7F6E7; color: #107C10; }
+    .pending { background: #F3F2F1; color: #605E5C; }
+    .footer {
+      color: #605E5C;
+      border-top: 1px solid #E1E1E1;
+      margin-top: 20px;
+      padding-top: 10px;
+      font-size: 11px;
+    }
+    @media print {
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <p class="brand">TrustPass Thailand</p>
+      <h1>Incident report for support</h1>
+      <p>This document is prepared for hotel staff, embassies, insurers, tourist police, or local helpers.</p>
+    </div>
+    <div>
+      <span class="badge">${escapeHtml(result.risk_level)}</span>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><span>Generated</span><strong>${escapeHtml(generatedAt)}</strong></div>
+    <div><span>City</span><strong>${escapeHtml(city)}</strong></div>
+    <div><span>Category</span><strong>${escapeHtml(result.category)}</strong></div>
+    <div><span>Evidence saved</span><strong>${savedCount}/${evidence.length} items</strong></div>
+  </div>
+
+  <div class="section">
+    <h2>Summary</h2>
+    <p>${escapeHtml(result.incident_report_summary.english)}</p>
+  </div>
+
+  <div class="section">
+    <h2>Detected risk signals</h2>
+    <ul>${result.suspicious_signals.map((signal) => `<li>${escapeHtml(signal)}</li>`).join("")}</ul>
+  </div>
+
+  <div class="section">
+    <h2>Recommended next steps</h2>
+    <ul>${result.safe_next_steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul>
+  </div>
+
+  <div class="section">
+    <h2>Supporting evidence</h2>
+    <div class="evidence-list">
+      ${orderedEvidence.map((item) => buildEnglishEvidenceHtml(item)).join("")}
+    </div>
+    ${!hasImages ? `<p class="evidence-note">No image evidence is attached to this report yet. Add screenshots or photos if available.</p>` : ""}
+  </div>
+
+  <div class="section">
+    <h2>Contact recommendation</h2>
+    <p>${escapeHtml(result.contact_recommendation)}</p>
+  </div>
+
+  <div class="section">
+    <h2>Important note</h2>
+    <p>This report summarizes risk signals to help the tourist ask for support. It is not a legal accusation. If there is a threat, confinement, or immediate danger, contact Tourist Police 1155 or move to a safe public place immediately.</p>
+  </div>
+
+  <p class="footer">
+    Generated by TrustPass Thailand to organize tourist safety information and related evidence.
+  </p>
+  <button class="no-print" onclick="window.print()" style="margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 8px; background: #0078D4; color: white; font-weight: 700;">Print / Save as PDF</button>
 </body>
 </html>`;
 }
@@ -2788,6 +2994,35 @@ function buildThaiEvidenceHtml(item: ReportEvidenceItem) {
         <span class="${item.saved ? "saved" : "pending"}">${item.saved ? "บันทึกแล้ว" : "ยังควรเก็บเพิ่ม"}</span>
       </div>
       ${item.note.trim() ? `<p class="evidence-note"><strong>หมายเหตุ:</strong> ${escapeHtml(item.note.trim())}</p>` : ""}
+      ${nonImageFiles.length > 0 ? `
+        <ul class="file-list">
+          ${nonImageFiles.map((file) => `<li>${escapeHtml(file.name)} (${escapeHtml(file.type || "unknown")}, ${formatFileSize(file.size)})</li>`).join("")}
+        </ul>
+      ` : ""}
+      ${imageFiles.length > 0 ? `
+        <div class="image-grid">
+          ${imageFiles.map((file) => `
+            <div>
+              <img class="evidence-image" src="${escapeHtml(file.previewDataUrl)}" alt="${escapeHtml(file.name)}" />
+              <p class="evidence-note">${escapeHtml(file.name)} (${formatFileSize(file.size)})</p>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function buildEnglishEvidenceHtml(item: ReportEvidenceItem) {
+  const imageFiles = item.files.filter((file) => file.previewDataUrl);
+  const nonImageFiles = item.files.filter((file) => !file.previewDataUrl);
+  return `
+    <div class="evidence-card">
+      <div class="evidence-title">
+        <strong>${escapeHtml(item.label)}</strong>
+        <span class="${item.saved ? "saved" : "pending"}">${item.saved ? "Saved" : "Still recommended"}</span>
+      </div>
+      ${item.note.trim() ? `<p class="evidence-note"><strong>Note:</strong> ${escapeHtml(item.note.trim())}</p>` : ""}
       ${nonImageFiles.length > 0 ? `
         <ul class="file-list">
           ${nonImageFiles.map((file) => `<li>${escapeHtml(file.name)} (${escapeHtml(file.type || "unknown")}, ${formatFileSize(file.size)})</li>`).join("")}

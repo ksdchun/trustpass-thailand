@@ -68,7 +68,7 @@ export const scenarios: Array<{
     signals: ["menu item prices", "venue tier", "premium/famous venue context", "missing venue confirmation"],
     trustPassDoes: "Extracts all visible menu items, compares each item against the likely venue tier, and asks for venue clarification when needed.",
     whyItMatters: "High prices can be normal at famous venues but suspicious at local stalls. Venue context is the key.",
-    image: "/evidence/jay-fai-menu-demo.png",
+    image: "/evidence/cropped-menu.png",
     imageAlt: "Synthetic restaurant menu evidence used to test food price grounding"
   },
   {
@@ -150,7 +150,7 @@ export const visualStories = [
   {
     title: "Menu price context",
     label: "Food / venue grounding",
-    image: "/evidence/jay-fai-menu-demo.png",
+    image: "/evidence/cropped-menu.png",
     alt: "Synthetic premium restaurant menu evidence for food price verification",
     text: "High food prices are not automatically scams. TrustPass asks for venue context, then compares visible menu items against Bangkok food tiers."
   },

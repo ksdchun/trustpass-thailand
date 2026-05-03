@@ -35,8 +35,15 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="flex min-h-[360px] rounded-[8px] border border-fluent-border bg-fluent-canvas p-3 shadow-soft lg:min-h-full">
-            <img src="/trustpass-product-flow-current.svg" alt="TrustPass Thailand product flow" className="h-full min-h-[320px] w-full rounded-[8px] border border-fluent-border bg-white object-contain" />
+          <div className="relative min-h-[360px] overflow-hidden rounded-[8px] border border-fluent-border bg-white shadow-soft lg:min-h-full">
+            <Image
+              src="/trustpass-hero-tourist-risk-check.png"
+              alt="Tourist using TrustPass Thailand risk check with travel evidence context"
+              fill
+              priority
+              sizes="(min-width: 1024px) 52vw, 100vw"
+              className="object-cover"
+            />
           </div>
         </div>
       </section>
@@ -90,7 +97,7 @@ export default function HomePage() {
           {visualStories.map((story) => (
             <article key={story.title} className="overflow-hidden rounded-[8px] border border-fluent-border bg-white shadow-sm">
               <div className="relative h-[460px] bg-fluent-canvas sm:h-[560px] md:h-[540px] xl:h-[620px]">
-                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="object-contain p-2" />
+                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="object-cover" />
               </div>
               <div className="p-5">
                 <p className="text-xs font-bold uppercase tracking-wide text-azure">{story.label}</p>

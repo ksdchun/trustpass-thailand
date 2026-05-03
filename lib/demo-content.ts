@@ -44,7 +44,6 @@ export const scenarios: Array<{
   whyItMatters: string;
   image?: string;
   imageAlt?: string;
-  imageClassName?: string;
 }> = [
   {
     id: "transport",
@@ -83,7 +82,7 @@ export const scenarios: Array<{
     signals: ["full advance payment", "personal or mismatched account", "missing license", "time pressure"],
     trustPassDoes: "Prioritizes payment fraud grounding over unrelated OCR noise and recommends verification before money leaves the account.",
     whyItMatters: "Payment identity and operator legitimacy are central to avoiding fake bookings and refund disputes.",
-    image: "/evidence/fake-tour-payment-demo.png",
+    image: "/evidence/cropped-fake-tour-line.png",
     imageAlt: "Synthetic chat evidence showing a fake tour payment pattern"
   },
   {
@@ -158,10 +157,9 @@ export const visualStories = [
   {
     title: "Payment identity risk",
     label: "Tour / QR fraud",
-    image: "/evidence/fake-tour-payment-demo.png",
+    image: "/evidence/cropped-fake-tour-line.png",
     alt: "Synthetic mobile chat showing a fake tour payment request",
-    text: "Full prepayment, personal accounts, missing license details, and urgency language are grounded as stronger payment-fraud signals.",
-    imageClassName: "object-cover object-top"
+    text: "Full prepayment, personal accounts, missing license details, and urgency language are grounded as stronger payment-fraud signals."
   },
   {
     title: "QR account mismatch",

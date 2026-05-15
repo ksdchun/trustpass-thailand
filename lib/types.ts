@@ -38,28 +38,43 @@ export type UserLocation = {
   source: "browser" | "manual";
 };
 
+export type GroundingConfidence = "low" | "medium" | "high";
+
 export type GroundingSignal = {
-  tool:
-    | "location"
-    | "route_distance"
-    | "fare_reference"
-    | "food_price_reference"
-    | "operator_payment_reference"
-    | "qr_payment_reference"
-    | "rental_document_reference"
-    | "damage_claim_reference"
-    | "job_lure_reference"
-    | "event_context"
-    | "venue_reference"
-    | "web_grounding";
+  tool: string;
   title: string;
   summary: string;
-  confidence: "low" | "medium" | "high";
+  confidence: GroundingConfidence;
   citations?: Array<{
     title: string;
     url: string;
   }>;
   metadata?: Record<string, unknown>;
+  source_file?: string;
+  source_label?: string;
+  confidence_percentage?: number;
+};
+
+export const GROUNDING_CONFIDENCE_PERCENT: Record<GroundingConfidence, number> = {
+  low: 60,
+  medium: 80,
+  high: 95
+};
+
+export type TrustedOperatorSignal = {
+  operator_name: string;
+  status: "verified" | "no_license" | "not_in_directory";
+  tat_license?: string;
+  operator_type?: "tour" | "rental" | "restaurant" | "transport" | "wellness";
+  city?: string;
+  notes?: string;
+};
+
+export type CommunityCorroboration = {
+  similar_incident_count: number;
+  window_days: number;
+  location_label: string;
+  link_to_dashboard?: string;
 };
 
 export type RiskCheckRequest = {
@@ -78,6 +93,10 @@ export type RiskCheckRequest = {
     type: string;
     size: number;
   }>;
+  evidenceImage?: string;
+  evidenceImageMime?: string;
+  evidenceSanitizationFlagged?: boolean;
+  evidenceSanitizationReasons?: string[];
 };
 
 export type RiskCheckResult = {
@@ -94,7 +113,9 @@ export type RiskCheckResult = {
     thai: string;
   };
   grounding?: GroundingSignal[];
-  source: "azure-openai" | "local-demo";
+  source: "azure-openai" | "local-demo" | "demo-mode-cache";
+  trusted_operator?: TrustedOperatorSignal;
+  community?: CommunityCorroboration;
 };
 
 export type ChatMessage = {
@@ -118,7 +139,7 @@ export type EvidenceHints = {
 export type EvidenceExtractResult = {
   extractedText: string;
   detectedFields: {
-    source: "azure-document-intelligence" | "fallback";
+    source: "azure-document-intelligence" | "fallback" | "demo-mode-cache";
     pages: number;
     hints: EvidenceHints;
     relevance: EvidenceRelevance;
@@ -140,46 +161,70 @@ export type SituationAnalyzeRequest = {
   evidenceRelevance?: EvidenceRelevanceResult;
   attachmentsMetadata?: RiskCheckRequest["attachmentsMetadata"];
   clarificationAnswers?: Record<string, string>;
+  evidenceImage?: string;
+};
+
+export type CompletedResponse = {
+  status: "completed";
+  risk_level: RiskLevel;
+  category: string;
+  signals: string[];
+  next_steps: string[];
+  why_it_matters: string;
+  thai_phrase: string;
+  evidence_to_save: string[];
+  contact_recommendation: string;
+  report: RiskCheckResult["incident_report_summary"];
+  grounding: GroundingSignal[];
+  source: RiskCheckResult["source"];
+  trusted_operator?: TrustedOperatorSignal;
+  community?: CommunityCorroboration;
+  request_id?: string;
+  latency_ms?: number;
+};
+
+export type NeedsClarificationResponse = {
+  status: "needs_clarification";
+  clarification_key?: string;
+  question: string;
+  reason: string;
+  suggested_answers: string[];
+  grounding: GroundingSignal[];
+};
+
+export type OutOfScopeResponse = {
+  status: "out_of_scope";
+  message: string;
+  suggested_next_inputs: string[];
+  evidence_relevance?: EvidenceRelevanceResult;
+  grounding: GroundingSignal[];
+};
+
+export type EvidenceMismatchResponse = {
+  status: "evidence_mismatch";
+  clarification_key: "evidence_choice";
+  question: string;
+  reason: string;
+  suggested_answers: string[];
+  message_topic: EvidenceTopic;
+  evidence_topic: EvidenceTopic;
+  evidence_relevance: EvidenceRelevanceResult;
+  grounding: GroundingSignal[];
+};
+
+export type DegradedResponse = {
+  status: "degraded";
+  reason: "azure_unavailable" | "schema_validation_failed" | "azure_timeout" | "content_safety_blocked";
+  reason_text: string;
+  fallback_result: CompletedResponse;
+  grounding: GroundingSignal[];
+  request_id?: string;
+  latency_ms?: number;
 };
 
 export type SituationAnalyzeResponse =
-  | {
-      status: "needs_clarification";
-      clarification_key?: string;
-      question: string;
-      reason: string;
-      suggested_answers: string[];
-      grounding: GroundingSignal[];
-    }
-  | {
-      status: "out_of_scope";
-      message: string;
-      suggested_next_inputs: string[];
-      evidence_relevance?: EvidenceRelevanceResult;
-      grounding: GroundingSignal[];
-    }
-  | {
-      status: "evidence_mismatch";
-      clarification_key: "evidence_choice";
-      question: string;
-      reason: string;
-      suggested_answers: string[];
-      message_topic: EvidenceTopic;
-      evidence_topic: EvidenceTopic;
-      evidence_relevance: EvidenceRelevanceResult;
-      grounding: GroundingSignal[];
-    }
-  | {
-      status: "completed";
-      risk_level: RiskLevel;
-      category: string;
-      signals: string[];
-      next_steps: string[];
-      why_it_matters: string;
-      thai_phrase: string;
-      evidence_to_save: string[];
-      contact_recommendation: string;
-      report: RiskCheckResult["incident_report_summary"];
-      grounding: GroundingSignal[];
-      source: RiskCheckResult["source"];
-    };
+  | CompletedResponse
+  | NeedsClarificationResponse
+  | OutOfScopeResponse
+  | EvidenceMismatchResponse
+  | DegradedResponse;

@@ -1,8 +1,29 @@
 import locationContext from "@/data/location_context.json";
 import taxiFareReference from "@/data/taxi_fare_reference.json";
 import foodPriceReference from "@/data/food_price_reference.json";
+import verifiedOperators from "@/data/verified_operators.demo.json";
 import { extractEvidenceHints } from "@/lib/evidence-hints";
 import type { GroundingSignal, RiskCheckRequest } from "@/lib/types";
+
+// TODO: import TrustedOperatorSignal from "@/lib/types" once Agent B merges the new contract.
+type TrustedOperatorSignalLocal = {
+  operator_name: string;
+  status: "verified" | "no_license" | "not_in_directory";
+  tat_license?: string;
+  operator_type?: "tour" | "rental" | "restaurant" | "transport" | "wellness";
+  city?: string;
+  notes?: string;
+};
+
+type VerifiedOperatorEntry = {
+  name: string;
+  operator_type?: string;
+  city?: string;
+  status: string;
+  tat_license?: string | null;
+  phone?: string;
+  notes?: string;
+};
 
 type Zone = {
   id: string;
@@ -1015,4 +1036,116 @@ function formatBangkokDate(date: Date) {
     month: "short",
     day: "numeric"
   }).format(date);
+}
+
+const operatorEntries = verifiedOperators as VerifiedOperatorEntry[];
+
+const stopwords = new Set([
+  "the",
+  "and",
+  "tour",
+  "tours",
+  "co",
+  "ltd",
+  "company",
+  "shop",
+  "restaurant",
+  "cafe",
+  "service",
+  "services",
+  "thailand",
+  "thai",
+]);
+
+function normalizeOperatorStatus(value: string | undefined): TrustedOperatorSignalLocal["status"] {
+  const candidate = (value || "").toLowerCase();
+  if (candidate === "verified" || candidate === "demo_verified") return "verified";
+  if (candidate === "no_license" || candidate === "unverified") return "no_license";
+  return "not_in_directory";
+}
+
+function isOperatorType(value: unknown): value is TrustedOperatorSignalLocal["operator_type"] {
+  return value === "tour" || value === "rental" || value === "restaurant" || value === "transport" || value === "wellness";
+}
+
+function tokenizeOperatorName(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0e00-\u0e7f\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !stopwords.has(token));
+}
+
+function operatorEntryToSignal(entry: VerifiedOperatorEntry): TrustedOperatorSignalLocal {
+  return {
+    operator_name: entry.name,
+    status: normalizeOperatorStatus(entry.status),
+    tat_license: entry.tat_license || undefined,
+    operator_type: isOperatorType(entry.operator_type) ? entry.operator_type : undefined,
+    city: entry.city,
+    notes: entry.notes,
+  };
+}
+
+/**
+ * Look up an operator by name (and optional city) against the demo verified-operator directory.
+ * Returns the structured trusted-operator signal. When no entry matches, returns a `not_in_directory`
+ * placeholder so the UI can still render the "we don't know this place" guidance card.
+ *
+ * Matching is best-effort: case-insensitive substring first, then token overlap with a small
+ * stopword list. City is used as a soft preference, never a hard filter.
+ *
+ * TODO: replace `TrustedOperatorSignalLocal` with `TrustedOperatorSignal` from `@/lib/types`
+ * once Agent B merges the shared types module.
+ */
+export function lookupOperator(operatorName: string | null, city?: string): TrustedOperatorSignalLocal | null {
+  if (!operatorName) return null;
+  const trimmed = operatorName.trim();
+  if (!trimmed) return null;
+
+  const lowerInput = trimmed.toLowerCase();
+  const inputTokens = tokenizeOperatorName(trimmed);
+  if (inputTokens.length === 0) {
+    return { operator_name: trimmed, status: "not_in_directory" };
+  }
+
+  const candidates = operatorEntries.map((entry) => {
+    const entryLower = entry.name.toLowerCase();
+    const entryTokens = tokenizeOperatorName(entry.name);
+    const tokenOverlap = inputTokens.filter((token) => entryTokens.includes(token)).length;
+    const substringMatch = entryLower.includes(lowerInput) || lowerInput.includes(entryLower);
+    const cityMatch = city && entry.city ? city.toLowerCase() === entry.city.toLowerCase() : false;
+
+    let score = 0;
+    if (substringMatch) score += 100;
+    score += tokenOverlap * 20;
+    if (cityMatch) score += 10;
+
+    return { entry, score, tokenOverlap, substringMatch };
+  });
+
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  const minimumOverlap = inputTokens.length >= 2 ? 2 : 1;
+  if (best && (best.substringMatch || best.tokenOverlap >= minimumOverlap)) {
+    return operatorEntryToSignal(best.entry);
+  }
+
+  return { operator_name: trimmed, status: "not_in_directory" };
+}
+
+export function lookupOperatorFromText(text: string, city?: string): TrustedOperatorSignalLocal | null {
+  if (!text) return null;
+  const hints = extractEvidenceHints(text);
+  const candidates = [...hints.business_names];
+  const lowerText = text.toLowerCase();
+  for (const entry of operatorEntries) {
+    if (lowerText.includes(entry.name.toLowerCase())) candidates.unshift(entry.name);
+  }
+
+  for (const candidate of candidates) {
+    const match = lookupOperator(candidate, city);
+    if (match && match.status !== "not_in_directory") return match;
+  }
+  return candidates[0] ? lookupOperator(candidates[0], city) : null;
 }

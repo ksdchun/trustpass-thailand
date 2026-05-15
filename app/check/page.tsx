@@ -1,6 +1,7 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { SiteNav } from "@/components/SiteNav";
+import { SiteFooter, SiteNav } from "@/components/SiteNav";
 import { TrustPassChat } from "@/components/TrustPassChat";
 
 export default function CheckPage() {
@@ -14,8 +15,11 @@ export default function CheckPage() {
             Back to overview
           </Link>
         </div>
-        <TrustPassChat />
+        <Suspense fallback={<div className="mx-auto h-64 w-full max-w-7xl animate-pulse rounded-md bg-slate-100" aria-hidden />}>
+          <TrustPassChat />
+        </Suspense>
       </div>
+      <SiteFooter />
     </main>
   );
 }

@@ -1,0 +1,105 @@
+{
+  "status": "completed",
+  "risk_level": "High",
+  "category": "Taxi fare far above route baseline",
+  "signals": [
+    "Meter refusal or meter unavailable",
+    "Fixed fare quote above route baseline",
+    "Quoted fare is about 8x above route baseline (800 THB vs ~100 THB local reference)",
+    "Pickup pressure to pay upfront before getting in"
+  ],
+  "next_steps": [
+    "Decline this ride and walk back into the BTS station or a hotel lobby; do not get into a taxi that refuses the meter.",
+    "Use Grab, Bolt, or your hotel's official taxi desk; the Siam to Wat Pho route should be about 60-120 THB on the meter (about 8 km, 15-25 minutes off-peak).",
+    "Save a photo of the taxi plate, the pickup point, the time, and the quoted fare in case you want to file a complaint.",
+    "If a driver follows you, blocks your path, or pressures you to get in, walk to the BTS staff or hotel front desk and ask them to help.",
+    "Optional: file a Bangkok taxi complaint via the Department of Land Transport hotline 1584 or via JS100 radio at 1137."
+  ],
+  "why_it_matters": "800 THB is about 8x the upper end of the local route baseline (about 60-120 THB metered for Siam to Wat Pho, ~8 km). A 'meter is broken' claim combined with a fixed-fare quote that high is the most common tourist-targeted overcharging script in central Bangkok. Bangkok law requires metered fares for green-yellow taxis (first km 35 THB, then 6.50 THB/km from km 1-10, plus a small waiting-time charge in heavy traffic). A driver who refuses the meter is in violation of the Public Land Transport Act and should be declined.",
+  "thai_phrase": "กรุณาเปิดมิเตอร์ครับ/ค่ะ ไม่งั้นขอเปลี่ยนคันได้ไหมครับ/ค่ะ",
+  "evidence_to_save": [
+    "Photo of the taxi plate and the driver's posted ID card if visible",
+    "Pickup point (Siam BTS exit X) and intended destination (Wat Pho)",
+    "Time of the quote and any verbal threat or pressure",
+    "Quoted fare (800 THB) and how the driver explained it",
+    "Receipt or Grab/Bolt screenshot of the same-route reference fare if you choose another ride"
+  ],
+  "contact_recommendation": "No police escalation is needed for the fare alone — just decline the ride and use another option. If the driver follows you, blocks you, or threatens you, walk to BTS staff or a hotel front desk and have them contact Tourist Police 1155. You can also report the taxi to the Department of Land Transport hotline 1584 (English available) or the JS100 traffic radio line 1137.",
+  "report": {
+    "english": "TrustPass taxi check in Bangkok: High risk. The quoted 800 THB fixed fare for Siam to Wat Pho (~8 km) is about 8x the metered route baseline of 60-120 THB. The driver refused the meter, which is a violation of the Bangkok metered-taxi rule. Recommended actions: decline the ride, use Grab/Bolt or the hotel taxi desk, save the plate and pickup details. No Tourist Police escalation is required from the fare alone unless the driver applies physical pressure.",
+    "thai": "รายงาน TrustPass ในกรุงเทพฯ: ระดับ High ค่าโดยสาร 800 บาท จากสยามไปวัดโพธิ์ (ประมาณ 8 กม.) สูงกว่ามิเตอร์ปกติ (60-120 บาท) ประมาณ 8 เท่า คนขับปฏิเสธการเปิดมิเตอร์ ซึ่งผิดกฎหมายแท็กซี่ในกรุงเทพ แนะนำให้ปฏิเสธการนั่งและใช้ Grab/Bolt หรือเคาน์เตอร์แท็กซี่ของโรงแรม เก็บภาพป้ายทะเบียน จุดรับ และเวลา ไม่จำเป็นต้องโทรตำรวจท่องเที่ยวจากเรื่องค่าโดยสารเพียงอย่างเดียว เว้นแต่ถูกข่มขู่หรือกดดันทางกาย"
+  },
+  "grounding": [
+    {
+      "tool": "fare_reference",
+      "title": "Bangkok taxi fare reference (Siam ↔ Wat Pho)",
+      "summary": "Curated Bangkok metered-taxi reference for Siam to Wat Pho via Rama I → Charoen Krung: typical metered fare 60-120 THB (route ~7.8 km, 15-25 min off-peak). Official Bangkok meter rule: first km 35 THB, then 6.50 THB/km from 1-10 km, plus waiting-time charge in heavy traffic. Quoted fare is 800 THB, which is about 8x the upper baseline.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/taxi_fare_reference.json",
+      "source_label": "Bangkok metered-taxi reference (Thailand.go.th)",
+      "citations": [
+        {
+          "title": "Thailand.go.th — Bangkok taxis increase fares (official meter rule)",
+          "url": "https://www.thailand.go.th/issue-focus-detail/001_08_001"
+        }
+      ],
+      "metadata": {
+        "quoted_fare_baht": 800,
+        "baseline_range_baht": [60, 120],
+        "taxi_meter_estimate_baht": [60, 120],
+        "route_distance_range_km": [7, 9],
+        "route_distance_km": 7.8,
+        "fare_position": "far_above",
+        "fare_ratio_to_baseline": 6.7,
+        "fare_severity": "extreme",
+        "suspicious_fare_signals": ["meter broken", "no meter"],
+        "grounding_source": "curated"
+      }
+    },
+    {
+      "tool": "route_distance",
+      "title": "Siam BTS to Wat Pho",
+      "summary": "Route distance: about 7.8 km via Rama I → Charoen Krung. Off-peak travel time ~15-25 minutes; peak (16:00-19:00) can reach 35-50 minutes. Grab/Bolt typical fare for the same route: 90-150 THB.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/taxi_fare_reference.json",
+      "source_label": "Curated Bangkok route reference",
+      "metadata": {
+        "route_origin": "Siam BTS",
+        "route_destination": "Wat Pho",
+        "straight_line_distance_km": 5.4,
+        "route_distance_km": 7.8,
+        "route_travel_time_minutes": 22,
+        "grounding_source": "curated"
+      }
+    },
+    {
+      "tool": "location",
+      "title": "Central Bangkok tourist hot-zone",
+      "summary": "Pickup point is Siam, a central Bangkok tourist hot-zone. Meter-refusal and fixed-fare overcharging are the most-reported tourist taxi complaints in this area (Tourist Police 1155 data, 2024).",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/location_context.json",
+      "source_label": "Bangkok central tourist zone (TrustPass curated)",
+      "metadata": {
+        "zone": "central_bangkok",
+        "grounding_source": "curated"
+      }
+    }
+  ],
+  "source": "demo-mode-cache",
+  "trusted_operator": {
+    "operator_name": "Unmetered street taxi (Siam pickup)",
+    "status": "not_in_directory",
+    "operator_type": "transport",
+    "city": "Bangkok",
+    "notes": "Driver refused to use the meter. Use Grab, Bolt, or the official hotel taxi desk instead. Bangkok green-yellow taxis must run the meter under the Public Land Transport Act."
+  },
+  "community": {
+    "similar_incident_count": 14,
+    "window_days": 7,
+    "location_label": "Bangkok central tourist hot-zones (Siam, Sukhumvit, Khao San)",
+    "link_to_dashboard": "/dashboard?pattern=taxi_meter_refusal"
+  }
+}

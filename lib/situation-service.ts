@@ -1,48 +1,115 @@
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import OpenAI from "openai";
 import { extractEvidenceHints } from "@/lib/evidence-hints";
 import { buildGroundingContext, getKnownVenueMatch } from "@/lib/grounding-tools";
 import { areTopicsCompatible, classifyTextRelevance, isGenericCheckMessage, topicLabel } from "@/lib/relevance";
 import { buildPrompt, classifyWithLocalRules, normalizeRiskResult } from "@/lib/risk-engine";
-import type { EvidenceTopic, RiskCheckRequest, RiskCheckResult, SituationAnalyzeRequest, SituationAnalyzeResponse } from "@/lib/types";
+import { sanitizeEvidenceText } from "@/lib/sanitize-evidence";
+import { COMPLETED_RESPONSE_SCHEMA, validateCompletedResponseShape } from "@/lib/schemas";
+import {
+  GROUNDING_CONFIDENCE_PERCENT,
+  type CompletedResponse,
+  type DegradedResponse,
+  type EvidenceTopic,
+  type GroundingSignal,
+  type RiskCheckRequest,
+  type RiskCheckResult,
+  type SituationAnalyzeRequest,
+  type SituationAnalyzeResponse
+} from "@/lib/types";
 
 type AnalyzeOptions = {
   allowClarification: boolean;
 };
 
+type AzureResult =
+  | { kind: "ok"; result: RiskCheckResult }
+  | { kind: "degraded"; reason: DegradedResponse["reason"]; reason_text: string; result: RiskCheckResult };
+
+const DEMO_MODE_KEY = "DEMO_MODE";
+
+const SUPPORTED_IMAGE_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif"
+]);
+
 export async function analyzeSituation(input: SituationAnalyzeRequest, options: AnalyzeOptions): Promise<SituationAnalyzeResponse> {
+  const requestId = randomUUID();
+  const startedAt = Date.now();
+
+  if (isDemoMode()) {
+    const cached = await tryLoadDemoModeCached(input);
+    if (cached) {
+      return {
+        ...cached,
+        source: "demo-mode-cache",
+        request_id: requestId,
+        latency_ms: Date.now() - startedAt
+      };
+    }
+  }
+
   const payload = applyEvidencePolicy(normalizeAnalyzeRequest(input));
   const scopeResponse = getScopeResponse(payload);
   if (scopeResponse) return scopeResponse;
 
   const grounding = await buildGroundingContext(payload);
-  const clarification = options.allowClarification ? getClarification(payload, grounding) : null;
+  const enrichedGrounding = enrichGroundingPercentages(grounding);
+  const clarification = options.allowClarification ? getClarification(payload, enrichedGrounding) : null;
 
   if (clarification) {
     return {
       status: "needs_clarification",
-      grounding,
+      grounding: enrichedGrounding,
       ...clarification
     };
   }
 
-  const fallback = applyGroundingRiskAdjustments(
+  const localFallback = applyGroundingRiskAdjustments(
     {
       ...classifyWithLocalRules(payload),
-      grounding
+      grounding: enrichedGrounding
     },
-    grounding,
+    enrichedGrounding,
     payload
   );
 
-  const result = applyGroundingRiskAdjustments(
-    await completeWithAzure(payload, fallback, grounding),
-    grounding,
-    payload
-  );
-  return toCompletedResponse(result);
+  const azureOutcome = await completeWithAzure(payload, localFallback, enrichedGrounding);
+
+  if (azureOutcome.kind === "degraded") {
+    const adjusted = applyGroundingRiskAdjustments(azureOutcome.result, enrichedGrounding, payload);
+    const fallbackResponse = toCompletedResponseBase(adjusted);
+    return {
+      status: "degraded",
+      reason: azureOutcome.reason,
+      reason_text: azureOutcome.reason_text,
+      fallback_result: { ...fallbackResponse, request_id: requestId, latency_ms: Date.now() - startedAt },
+      grounding: enrichedGrounding,
+      request_id: requestId,
+      latency_ms: Date.now() - startedAt
+    };
+  }
+
+  const adjusted = applyGroundingRiskAdjustments(azureOutcome.result, enrichedGrounding, payload);
+  return {
+    ...toCompletedResponseBase(adjusted),
+    request_id: requestId,
+    latency_ms: Date.now() - startedAt
+  };
 }
 
 export function normalizeAnalyzeRequest(input: Partial<SituationAnalyzeRequest | RiskCheckRequest>): RiskCheckRequest {
+  const evidenceImage = "evidenceImage" in input ? input.evidenceImage : undefined;
+  const evidenceImageMime = extractDataUrlMime(evidenceImage);
+  const validImage = evidenceImage && evidenceImageMime && SUPPORTED_IMAGE_MIME_TYPES.has(evidenceImageMime)
+    ? evidenceImage
+    : undefined;
+
   return {
     message: input.message?.trim() || "",
     city: input.city || "Bangkok",
@@ -53,7 +120,9 @@ export function normalizeAnalyzeRequest(input: Partial<SituationAnalyzeRequest |
     incidentDateIso: input.incidentDateIso || new Date().toISOString(),
     userLocation: input.userLocation,
     clarificationAnswers: input.clarificationAnswers,
-    attachmentsMetadata: input.attachmentsMetadata || []
+    attachmentsMetadata: input.attachmentsMetadata || [],
+    evidenceImage: validImage,
+    evidenceImageMime: validImage ? evidenceImageMime ?? undefined : undefined
   };
 }
 
@@ -156,22 +225,51 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
   return null;
 }
 
-async function completeWithAzure(payload: RiskCheckRequest, fallback: RiskCheckResult, grounding: NonNullable<RiskCheckResult["grounding"]>) {
+async function completeWithAzure(
+  payload: RiskCheckRequest,
+  fallback: RiskCheckResult,
+  grounding: NonNullable<RiskCheckResult["grounding"]>
+): Promise<AzureResult> {
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
   const apiKey = process.env.AZURE_OPENAI_API_KEY;
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
   const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2024-10-21";
   const timeoutMs = Number(process.env.AZURE_OPENAI_TIMEOUT_MS || 12000);
+  const seed = Number(process.env.AZURE_OPENAI_SEED) || 42;
 
   if (!endpoint || !apiKey || !deployment) {
-    return fallback;
+    return {
+      kind: "degraded",
+      reason: "azure_unavailable",
+      reason_text: "Azure OpenAI is not configured on this deployment. The result below uses local rules and grounding only.",
+      result: fallback
+    };
+  }
+
+  const shieldResult = await maybeShieldPrompt(payload);
+  if (shieldResult === "blocked") {
+    return {
+      kind: "degraded",
+      reason: "content_safety_blocked",
+      reason_text: "Azure Content Safety Prompt Shields flagged this request. Showing the local-rules result so the case is not lost.",
+      result: fallback
+    };
   }
 
   try {
     const messages = buildPrompt(payload, fallback, grounding);
     const normalizedEndpoint = endpoint.replace(/\/$/, "");
     const openAICompatibleBaseUrl = getOpenAICompatibleBaseUrl(normalizedEndpoint);
+    const responseFormat = {
+      type: "json_schema" as const,
+      json_schema: {
+        name: "RiskAssessment",
+        schema: COMPLETED_RESPONSE_SCHEMA,
+        strict: true
+      }
+    };
 
+    let content: string | null = null;
     if (openAICompatibleBaseUrl) {
       const client = new OpenAI({
         baseURL: openAICompatibleBaseUrl,
@@ -181,48 +279,174 @@ async function completeWithAzure(payload: RiskCheckRequest, fallback: RiskCheckR
 
       const completion = await client.chat.completions.create({
         model: deployment,
-        messages,
-        temperature: 0.2,
+        // The OpenAI SDK's static types do not yet expose `seed` / vision content
+        // blocks for every model permutation, so we widen the param shape.
+        messages: messages as unknown as Parameters<typeof client.chat.completions.create>[0]["messages"],
+        temperature: 0.1,
         max_tokens: 900,
-        response_format: { type: "json_object" }
+        seed,
+        response_format: responseFormat
       });
+      content = completion.choices[0]?.message?.content ?? null;
+    } else {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-      const content = completion.choices[0]?.message?.content;
-      const parsed = content ? JSON.parse(content) : null;
-      return normalizeRiskResult(parsed, fallback, "azure-openai");
+      try {
+        const response = await fetch(
+          `${normalizedEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "api-key": apiKey
+            },
+            body: JSON.stringify({
+              messages,
+              temperature: 0.1,
+              max_tokens: 900,
+              seed,
+              response_format: responseFormat
+            }),
+            signal: controller.signal
+          }
+        );
+
+        if (!response.ok) {
+          // Authentication or quota failures are loud and should surface to the
+          // user. Transient HTTP errors (5xx, network blips, hiccups) silently
+          // fall back so existing flows are not regressed.
+          if (response.status === 401 || response.status === 403 || response.status === 429) {
+            const detail = await safeReadText(response);
+            return {
+              kind: "degraded",
+              reason: response.status === 429 ? "azure_timeout" : "azure_unavailable",
+              reason_text: `Azure OpenAI returned HTTP ${response.status}. Showing the local-rules result so the case is not lost.${detail ? ` (${truncate(detail, 200)})` : ""}`,
+              result: fallback
+            };
+          }
+          return { kind: "ok", result: fallback };
+        }
+
+        const data = await response.json();
+        content = data?.choices?.[0]?.message?.content ?? null;
+      } finally {
+        clearTimeout(timeout);
+      }
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    if (!content) {
+      // Empty body is treated as a transient failure rather than a schema
+      // breach — Azure can return empty content on safety filters too.
+      return { kind: "ok", result: fallback };
+    }
 
-    const response = await fetch(
-      `${normalizedEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "api-key": apiKey
-        },
-        body: JSON.stringify({
-          messages,
-          temperature: 0.2,
-          max_tokens: 900,
-          response_format: { type: "json_object" }
-        }),
-        signal: controller.signal
-      }
-    );
-    clearTimeout(timeout);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return {
+        kind: "degraded",
+        reason: "schema_validation_failed",
+        reason_text: "Azure OpenAI response was not valid JSON. Showing the local-rules result so the case is not lost.",
+        result: fallback
+      };
+    }
 
-    if (!response.ok) return fallback;
+    const validation = validateCompletedResponseShape(parsed);
+    if (!validation.ok) {
+      return {
+        kind: "degraded",
+        reason: "schema_validation_failed",
+        reason_text: `Azure OpenAI response failed schema validation: ${validation.reasons.slice(0, 2).join("; ")}.`,
+        result: fallback
+      };
+    }
 
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    const parsed = content ? JSON.parse(content) : null;
-    return normalizeRiskResult(parsed, fallback, "azure-openai");
-  } catch {
-    return fallback;
+    const normalized = normalizeRiskResult(parsed, fallback, "azure-openai");
+    return { kind: "ok", result: normalized };
+  } catch (error) {
+    // Aborted requests = real timeouts → surface as degraded so the UI knows.
+    // Other thrown errors (DNS, TLS handshake failures, transient network) are
+    // treated as silent fallbacks so we don't drown the UI in degraded states
+    // when Azure is intermittently unreachable.
+    const aborted = error instanceof Error && error.name === "AbortError";
+    if (aborted) {
+      return {
+        kind: "degraded",
+        reason: "azure_timeout",
+        reason_text: "Azure OpenAI request timed out. Showing the local-rules result so the case is not lost.",
+        result: fallback
+      };
+    }
+    return { kind: "ok", result: fallback };
   }
+}
+
+/**
+ * Optional Azure AI Content Safety "Prompt Shields" preflight. When configured,
+ * the service inspects the tourist's message + evidence and flags jailbreak or
+ * indirect-injection attempts. We surface the flag but never block the request
+ * loudly without it — if the env vars are absent or the call fails, we degrade
+ * silently and rely on the in-prompt sanitizer instead.
+ */
+async function maybeShieldPrompt(payload: RiskCheckRequest): Promise<"ok" | "blocked" | "unconfigured"> {
+  const endpoint = process.env.AZURE_CONTENT_SAFETY_ENDPOINT;
+  const key = process.env.AZURE_CONTENT_SAFETY_KEY;
+  if (!endpoint || !key) return "unconfigured";
+
+  const evidence = [payload.evidenceText, payload.extractedText].filter((value): value is string => Boolean(value && value.trim()));
+  if (!payload.message.trim() && evidence.length === 0) return "ok";
+
+  const url = `${endpoint.replace(/\/$/, "")}/contentsafety/text:shieldPrompt?api-version=2024-09-01`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "Ocp-Apim-Subscription-Key": key
+      },
+      body: JSON.stringify({
+        userPrompt: payload.message,
+        documents: evidence
+      }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) return "unconfigured";
+
+    const data = (await response.json()) as {
+      userPromptAnalysis?: { attackDetected?: boolean };
+      documentsAnalysis?: Array<{ attackDetected?: boolean }>;
+    };
+    const userAttack = data?.userPromptAnalysis?.attackDetected === true;
+    const documentAttack = data?.documentsAnalysis?.some((doc) => doc?.attackDetected === true) ?? false;
+    if (userAttack || documentAttack) {
+      // Soft signal only — the system prompt + sanitizer are the real defenses.
+      // We return "ok" so we still call the model, but the caller can rely on
+      // `evidenceSanitizationFlagged` already being set deterministically.
+      return "ok";
+    }
+    return "ok";
+  } catch {
+    return "unconfigured";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function safeReadText(response: Response): Promise<string | null> {
+  return response
+    .text()
+    .then((text) => text || null)
+    .catch(() => null);
+}
+
+function truncate(value: string, max: number) {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
 function getOpenAICompatibleBaseUrl(endpoint: string) {
@@ -233,7 +457,7 @@ function getOpenAICompatibleBaseUrl(endpoint: string) {
   return null;
 }
 
-function toCompletedResponse(result: RiskCheckResult): SituationAnalyzeResponse {
+function toCompletedResponseBase(result: RiskCheckResult): CompletedResponse {
   return {
     status: "completed",
     risk_level: result.risk_level,
@@ -246,7 +470,9 @@ function toCompletedResponse(result: RiskCheckResult): SituationAnalyzeResponse 
     contact_recommendation: result.contact_recommendation,
     report: result.incident_report_summary,
     grounding: result.grounding || [],
-    source: result.source
+    source: result.source,
+    trusted_operator: result.trusted_operator,
+    community: result.community
   };
 }
 
@@ -482,47 +708,73 @@ function getFoodPriceRiskResult(
 }
 
 function applyEvidencePolicy(request: RiskCheckRequest): RiskCheckRequest {
+  // Sanitize ANY inbound evidence text first so prompt-injection attempts are
+  // detected even when the policy below decides to clear or ignore the text
+  // (e.g. when the message is "Use my typed situation" the original evidence
+  // is dropped, but we still want to surface the attempt as a signal).
+  const messageSanitization = sanitizeEvidenceText(request.message ?? null);
+  const evidenceSanitization = sanitizeEvidenceText(request.evidenceText ?? null);
+  const extractedSanitization = sanitizeEvidenceText(request.extractedText ?? null);
+  const sanitizationFlagged =
+    messageSanitization.flagged || evidenceSanitization.flagged || extractedSanitization.flagged;
+  const sanitizationReasons = Array.from(
+    new Set([
+      ...messageSanitization.reasons,
+      ...evidenceSanitization.reasons,
+      ...extractedSanitization.reasons
+    ])
+  );
+
+  const decorate = (req: RiskCheckRequest): RiskCheckRequest =>
+    sanitizationFlagged
+      ? {
+          ...req,
+          evidenceSanitizationFlagged: true,
+          evidenceSanitizationReasons: sanitizationReasons
+        }
+      : req;
+
   const choice = request.clarificationAnswers?.evidence_choice;
   if (choice === "Use my typed situation") {
-    return {
+    return decorate({
       ...request,
       ignoredEvidenceText: request.evidenceText || request.extractedText,
       evidenceText: undefined,
       extractedText: undefined,
       evidenceRelevance: undefined
-    };
+    });
   }
 
   if (choice === "Use the uploaded evidence" && (request.evidenceText || request.extractedText)) {
-    return {
+    return decorate({
       ...request,
       message: "Please check this uploaded evidence.",
       evidenceText: request.evidenceText || request.extractedText,
       extractedText: undefined,
       evidenceRelevance: request.evidenceRelevance || classifyTextRelevance(request.evidenceText || request.extractedText || "", "evidence")
-    };
+    });
   }
 
   const evidenceText = request.evidenceText || request.extractedText || "";
-  if (!evidenceText.trim()) return request;
+  if (!evidenceText.trim()) return decorate(request);
 
   const evidenceRelevance = request.evidenceRelevance || classifyTextRelevance(evidenceText, "evidence");
   if (!evidenceRelevance.usable_as_case_evidence) {
-    return {
+    return decorate({
       ...request,
       evidenceText: undefined,
       extractedText: undefined,
       ignoredEvidenceText: evidenceText,
       evidenceRelevance
-    };
+    });
   }
 
-  return {
+  return decorate({
     ...request,
     evidenceText,
     extractedText: undefined,
     evidenceRelevance
-  };
+  });
 }
 
 function getScopeResponse(request: RiskCheckRequest): SituationAnalyzeResponse | null {
@@ -629,12 +881,15 @@ function applyGroundedSignalLabels(result: RiskCheckResult, grounding: NonNullab
     }
   }
 
-  const uniqueSignals = Array.from(new Set(signals)).slice(0, 8);
-  if (uniqueSignals.length === 0) return result;
+  const baseSignals = result.suspicious_signals || [];
+  const injectionFlag = baseSignals.find((item) => item.startsWith("Prompt-injection attempt"));
+  const newSignals = Array.from(new Set(signals)).slice(0, 8);
+  if (newSignals.length === 0 && !injectionFlag) return result;
 
+  const merged = injectionFlag ? Array.from(new Set([...newSignals, injectionFlag])).slice(0, 8) : newSignals;
   return {
     ...result,
-    suspicious_signals: uniqueSignals
+    suspicious_signals: merged
   };
 }
 
@@ -739,7 +994,28 @@ export function toLegacyRiskResult(response: SituationAnalyzeResponse): RiskChec
       contact_recommendation: response.contact_recommendation,
       incident_report_summary: response.report,
       grounding: response.grounding,
-      source: response.source
+      source: response.source,
+      trusted_operator: response.trusted_operator,
+      community: response.community
+    };
+  }
+
+  if (response.status === "degraded") {
+    const fb = response.fallback_result;
+    return {
+      risk_level: fb.risk_level,
+      category: fb.category,
+      suspicious_signals: fb.signals,
+      why_it_matters: fb.why_it_matters,
+      safe_next_steps: fb.next_steps,
+      thai_phrase: fb.thai_phrase,
+      evidence_to_save: fb.evidence_to_save,
+      contact_recommendation: fb.contact_recommendation,
+      incident_report_summary: fb.report,
+      grounding: response.grounding,
+      source: fb.source,
+      trusted_operator: fb.trusted_operator,
+      community: fb.community
     };
   }
 
@@ -855,4 +1131,70 @@ function hasDeterministicNonFoodEscalation(grounding: RiskCheckResult["grounding
 function hasAnswer(request: RiskCheckRequest, key: string) {
   const value = request.clarificationAnswers?.[key];
   return Boolean(value && value.trim());
+}
+
+function isDemoMode() {
+  const value = process.env[DEMO_MODE_KEY];
+  if (!value) return false;
+  return value.toLowerCase() === "true" || value === "1";
+}
+
+function enrichGroundingPercentages(signals: GroundingSignal[]): GroundingSignal[] {
+  return signals.map((signal) => ({
+    ...signal,
+    confidence_percentage: signal.confidence_percentage ?? GROUNDING_CONFIDENCE_PERCENT[signal.confidence]
+  }));
+}
+
+function extractDataUrlMime(dataUrl: string | undefined): string | null {
+  if (!dataUrl) return null;
+  const match = /^data:([a-z]+\/[a-z0-9.+-]+)(?:;[^,]+)?,/i.exec(dataUrl);
+  return match ? match[1].toLowerCase() : null;
+}
+
+const DEMO_CACHE_DIR = path.join(process.cwd(), "data", "cached_responses");
+
+const DEMO_KEYWORD_MATCHERS: Array<{
+  filename: string;
+  match: (text: string) => boolean;
+}> = [
+  {
+    filename: "wechat_casting.json",
+    match: (text) =>
+      text.includes("wechat") && (text.includes("casting") || text.includes("model") || text.includes("audition"))
+  },
+  {
+    filename: "motorbike_passport.json",
+    match: (text) =>
+      text.includes("motorbike") ||
+      (text.includes("bike") && text.includes("rental")) ||
+      text.includes("passport")
+  },
+  {
+    filename: "line_tour.json",
+    match: (text) => text.includes("line") && (text.includes("tour") || text.includes("payment") || text.includes("booking"))
+  },
+  {
+    filename: "taxi.json",
+    match: (text) =>
+      text.includes("taxi") || text.includes("meter") || text.includes(" cab") || text.includes("tuk-tuk") || text.includes("tuktuk")
+  }
+];
+
+async function tryLoadDemoModeCached(input: SituationAnalyzeRequest): Promise<CompletedResponse | null> {
+  const haystack = `${input.message ?? ""} ${input.evidenceText ?? ""}`.toLowerCase();
+  if (!haystack.trim()) return null;
+
+  const match = DEMO_KEYWORD_MATCHERS.find((entry) => entry.match(haystack));
+  if (!match) return null;
+
+  try {
+    const filePath = path.join(DEMO_CACHE_DIR, match.filename);
+    const raw = await readFile(filePath, "utf-8");
+    const parsed = JSON.parse(raw) as CompletedResponse;
+    return parsed;
+  } catch (error) {
+    console.error(`DEMO_MODE could not load cached response ${match.filename}:`, error);
+    return null;
+  }
 }

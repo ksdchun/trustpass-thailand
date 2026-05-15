@@ -1,7 +1,17 @@
 import riskPatterns from "@/data/risk_patterns.json";
 import contacts from "@/data/emergency_contacts.json";
-import { SYSTEM_PROMPT, languageInstruction } from "@/lib/system-prompt";
-import type { GroundingSignal, RiskCheckRequest, RiskCheckResult, RiskLevel, RiskPattern } from "@/lib/types";
+import { PROMPT_INJECTION_REMINDER, SYSTEM_PROMPT, languageInstruction } from "@/lib/system-prompt";
+import { sanitizeEvidenceText, wrapEvidenceForPrompt } from "@/lib/sanitize-evidence";
+import {
+  GROUNDING_CONFIDENCE_PERCENT,
+  type CommunityCorroboration,
+  type GroundingSignal,
+  type RiskCheckRequest,
+  type RiskCheckResult,
+  type RiskLevel,
+  type RiskPattern,
+  type TrustedOperatorSignal
+} from "@/lib/types";
 
 const typedPatterns = riskPatterns as RiskPattern[];
 
@@ -40,7 +50,7 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
     return {
       risk_level: "Low",
       category: "No strong scam pattern detected",
-      suspicious_signals: [],
+      suspicious_signals: maybeAppendInjectionSignal([], request),
       why_it_matters:
         "The message does not match the strongest tourism scam patterns. Still verify business identity, price, receipt, and cancellation terms before paying or travelling.",
       safe_next_steps: [
@@ -58,60 +68,120 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
 
   const strongest = matches[0].pattern;
   const allSignals = Array.from(new Set(matches.flatMap((match) => displaySignalsForMatch(match.pattern.id, match.hits, combined)))).slice(0, 8);
+  const signalsWithInjection = maybeAppendInjectionSignal(allSignals, request);
   const actionSet = Array.from(new Set(matches.flatMap((match) => match.pattern.actions))).slice(0, 5);
 
   return {
     risk_level: strongest.riskLevel,
     category: strongest.category,
-    suspicious_signals: allSignals,
+    suspicious_signals: signalsWithInjection,
     why_it_matters: strongest.why,
     safe_next_steps: actionSet,
     thai_phrase: strongest.thaiPhrase,
     evidence_to_save: evidenceFor(strongest.category),
     contact_recommendation: contactFor(strongest.riskLevel),
-    incident_report_summary: buildReport(strongest.category, strongest.riskLevel, request.city, allSignals),
+    incident_report_summary: buildReport(strongest.category, strongest.riskLevel, request.city, signalsWithInjection),
     source: "local-demo"
   };
 }
 
-export function buildPrompt(request: RiskCheckRequest, baseline: RiskCheckResult, grounding: GroundingSignal[]) {
+type ChatTextPart = { type: "text"; text: string };
+type ChatImagePart = { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } };
+type ChatUserContent = string | Array<ChatTextPart | ChatImagePart>;
+type ChatMessage =
+  | { role: "system"; content: string }
+  | { role: "user"; content: ChatUserContent };
+
+export function buildPrompt(
+  request: RiskCheckRequest,
+  baseline: RiskCheckResult,
+  grounding: GroundingSignal[]
+): ChatMessage[] {
+  const sanitizedExtracted = sanitizeEvidenceText(request.extractedText ?? null);
+  const sanitizedEvidence = sanitizeEvidenceText(request.evidenceText ?? null);
+  const injectionFlagged = sanitizedExtracted.flagged || sanitizedEvidence.flagged || Boolean(request.evidenceSanitizationFlagged);
+  const injectionReasons = Array.from(
+    new Set([
+      ...sanitizedExtracted.reasons,
+      ...sanitizedEvidence.reasons,
+      ...(request.evidenceSanitizationReasons ?? [])
+    ])
+  );
+
+  const extractedEnvelope = wrapEvidenceForPrompt(sanitizedExtracted.clean, "ocr");
+  const evidenceEnvelope = wrapEvidenceForPrompt(sanitizedEvidence.clean, "typed");
+
+  const userPayload = {
+    task: "Classify tourist scam/fraud risk in Thailand. Return JSON matching the schema in the system prompt.",
+    tourist_input: {
+      message: request.message,
+      city: request.city,
+      incident_date_iso: request.incidentDateIso ?? null,
+      user_location: request.userLocation ?? null,
+      clarification_answers: request.clarificationAnswers ?? null,
+      output_language: request.language,
+      attachments: request.attachmentsMetadata ?? [],
+      has_image: Boolean(request.evidenceImage),
+      image_mime: request.evidenceImage ? request.evidenceImageMime ?? null : null
+    },
+    evidence_envelopes: {
+      extracted_ocr: extractedEnvelope || null,
+      typed_evidence: evidenceEnvelope || null,
+      ignored_evidence_text: request.ignoredEvidenceText ?? null,
+      evidence_relevance: request.evidenceRelevance ?? null
+    },
+    evidence_sanitization: {
+      flagged: injectionFlagged,
+      reasons: injectionReasons
+    },
+    local_rule_baseline: baseline,
+    grounding_context: grounding,
+    emergency_contacts: contacts
+  };
+
+  const systemBlocks = [
+    `${SYSTEM_PROMPT}\n\n${languageInstruction(request.language)}`,
+    injectionFlagged ? PROMPT_INJECTION_REMINDER : null
+  ].filter((block): block is string => Boolean(block));
+
+  const userText = JSON.stringify(userPayload, null, 2);
+
+  const userContent: ChatUserContent = request.evidenceImage
+    ? [
+        { type: "text", text: userText },
+        { type: "image_url", image_url: { url: request.evidenceImage, detail: "high" } }
+      ]
+    : userText;
+
   return [
     {
-      role: "system" as const,
-      content: `${SYSTEM_PROMPT}\n\n${languageInstruction(request.language)}`
+      role: "system",
+      content: systemBlocks.join("\n\n")
     },
     {
-      role: "user" as const,
-      content: JSON.stringify(
-        {
-          task: "Classify tourist scam/fraud risk in Thailand. Return JSON matching the schema in the system prompt.",
-          tourist_input: {
-            message: request.message,
-            extracted_evidence_text: request.extractedText ?? null,
-            evidence_text: request.evidenceText ?? null,
-            ignored_evidence_text: request.ignoredEvidenceText ?? null,
-            evidence_relevance: request.evidenceRelevance ?? null,
-            city: request.city,
-            incident_date_iso: request.incidentDateIso ?? null,
-            user_location: request.userLocation ?? null,
-            clarification_answers: request.clarificationAnswers ?? null,
-            output_language: request.language,
-            attachments: request.attachmentsMetadata ?? []
-          },
-          local_rule_baseline: baseline,
-          grounding_context: grounding,
-          emergency_contacts: contacts
-        },
-        null,
-        2
-      )
+      role: "user",
+      content: userContent
     }
   ];
 }
 
-export function normalizeRiskResult(input: unknown, fallback: RiskCheckResult, source: RiskCheckResult["source"]): RiskCheckResult {
+function maybeAppendInjectionSignal(signals: string[], request: RiskCheckRequest): string[] {
+  if (!request.evidenceSanitizationFlagged) return signals;
+  const label = "Prompt-injection attempt detected in evidence";
+  if (signals.includes(label)) return signals;
+  return [...signals, label].slice(0, 8);
+}
+
+export function normalizeRiskResult(
+  input: unknown,
+  fallback: RiskCheckResult,
+  source: RiskCheckResult["source"]
+): RiskCheckResult {
   if (!input || typeof input !== "object") return fallback;
-  const value = input as Partial<RiskCheckResult>;
+  const value = input as Partial<RiskCheckResult> & {
+    trusted_operator?: TrustedOperatorSignal;
+    community?: CommunityCorroboration;
+  };
   const level = value.risk_level && ["Low", "Caution", "High", "Emergency"].includes(value.risk_level)
     ? value.risk_level
     : fallback.risk_level;
@@ -129,9 +199,19 @@ export function normalizeRiskResult(input: unknown, fallback: RiskCheckResult, s
       english: value.incident_report_summary?.english || fallback.incident_report_summary.english,
       thai: value.incident_report_summary?.thai || fallback.incident_report_summary.thai
     },
-    grounding: fallback.grounding || groundingOr(value.grounding, fallback.grounding),
-    source
+    grounding: enrichGrounding(fallback.grounding || groundingOr(value.grounding, fallback.grounding)),
+    source,
+    trusted_operator: value.trusted_operator ?? fallback.trusted_operator,
+    community: value.community ?? fallback.community
   };
+}
+
+function enrichGrounding(signals?: GroundingSignal[]): GroundingSignal[] | undefined {
+  if (!signals) return signals;
+  return signals.map((signal) => ({
+    ...signal,
+    confidence_percentage: signal.confidence_percentage ?? GROUNDING_CONFIDENCE_PERCENT[signal.confidence]
+  }));
 }
 
 function patternApplies(patternId: string, text: string) {

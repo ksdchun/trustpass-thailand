@@ -1,0 +1,112 @@
+{
+  "status": "completed",
+  "risk_level": "High",
+  "category": "Suspicious tour payment via LINE — personal-account transfer",
+  "signals": [
+    "Full advance payment requested",
+    "Payment account appears personal (individual name, not a registered company)",
+    "Missing operator or TAT license details",
+    "Informal LINE-only sales channel with no company website or receipt",
+    "Time pressure: 'limited seats', 'price goes up tomorrow'"
+  ],
+  "next_steps": [
+    "Do not transfer the full 2,999 THB to the personal Kasikorn account before verifying the operator.",
+    "Ask the seller for a TAT license number (format: digits/digits, e.g. 34/12345) and the registered company name; cross-check at tourism.go.th/tat-license-verification.",
+    "Use a TAT-verified booking platform (Klook, GetYourGuide, Tour East, or your hotel's tour desk) for the same Phi Phi + Maya Bay package — typical price is 1,500-2,500 THB per person via licensed operators.",
+    "If you still want to use this seller, pay only a 20-30% deposit (not the full amount) and use a credit card (chargeback protection) or a platform with escrow, not a personal bank transfer.",
+    "Save the chat log, the seller's LINE ID, the account name and number, and any flyer/itinerary they sent."
+  ],
+  "why_it_matters": "Legitimate Thai tour operators are licensed by the Tourism Authority of Thailand (TAT), accept payment into a registered business account (not a personal one), issue an official receipt with the TAT license number, and post cancellation terms in writing. A LINE-only seller asking for full prepayment to a personal Kasikorn account, with no TAT license, no receipt, no website, and time-pressure language is the most common Thai island-tour scam pattern. Recovery of funds after a personal-account transfer is almost impossible — the Bank of Thailand's mule-account database removes the account weeks after the scam is reported, by which point the money is gone.",
+  "thai_phrase": "ขอเลขใบอนุญาตการท่องเที่ยว (TAT license) และชื่อบริษัทที่จดทะเบียน พร้อมใบเสร็จก่อนชำระเงินได้ไหมครับ/ค่ะ",
+  "evidence_to_save": [
+    "Full LINE chat log (screenshots of every message and the seller's LINE ID and profile)",
+    "Account name (Nattapong S.), bank (Kasikorn), and account number from the transfer instructions",
+    "Tour itinerary, price quote, and any 'limited time' messages",
+    "Seller's phone number and any other contact channels",
+    "If you have already transferred: bank slip / transfer confirmation"
+  ],
+  "contact_recommendation": "No Tourist Police escalation is required if you have NOT paid yet — just decline and use a licensed booking platform. If you have already transferred money and cannot reach the seller: contact Tourist Police 1155 (English support, 24/7), your bank's fraud line within 24 hours (Kasikorn fraud line: 02-888-8888), and the TAT consumer protection line 1672 for tour-operator complaints.",
+  "report": {
+    "english": "TrustPass tour-booking check in Phuket: High risk. A LINE seller (Andaman Explorer Tours, unverified) is requesting full 2,999 THB payment for a Phi Phi + Maya Bay package via bank transfer to a personal Kasikorn account in the name of Nattapong S., with no TAT license number, no registered company name, no receipt, and limited-time pricing pressure. Pattern matches the documented Thai island-tour personal-transfer fraud script. Recommended actions: do not transfer, request TAT license and registered company, use a TAT-verified platform (Klook / GetYourGuide / hotel desk) for the same package, and save all chat evidence. Escalate to Tourist Police 1155 and Kasikorn fraud line 02-888-8888 only if money has already been sent.",
+    "thai": "รายงาน TrustPass สำหรับการจองทัวร์ในภูเก็ต: ระดับ High ผู้ขายทาง LINE (Andaman Explorer Tours, ไม่ได้รับการตรวจสอบ) ขอเงิน 2,999 บาทเต็มจำนวนสำหรับแพ็กเกจเกาะพีพี + อ่าวมาหยา ผ่านการโอนเงินไปที่บัญชีส่วนตัวธนาคารกสิกรในชื่อ Nattapong S. โดยไม่มีเลข TAT license ไม่มีชื่อบริษัทจดทะเบียน ไม่มีใบเสร็จ และมีการกดดันด้วยราคาจำกัดเวลา รูปแบบสอดคล้องกับการหลอกลวงโอนเงินส่วนตัวสำหรับทัวร์เกาะ แนะนำให้ไม่โอน ขอเลข TAT license และชื่อบริษัท ใช้แพลตฟอร์มที่ได้รับการตรวจสอบ (Klook / GetYourGuide / เคาน์เตอร์ทัวร์ของโรงแรม) และเก็บหลักฐานทั้งหมด ติดต่อตำรวจท่องเที่ยว 1155 และสายด่วนทุจริตของธนาคารกสิกร 02-888-8888 เฉพาะกรณีที่ได้โอนเงินไปแล้ว"
+  },
+  "grounding": [
+    {
+      "tool": "operator_payment_reference",
+      "title": "Tour-operator personal-account transfer pattern",
+      "summary": "Combination of (a) full advance payment, (b) personal Kasikorn account in an individual name, (c) no TAT license, (d) LINE-only channel, and (e) limited-time pricing pressure matches the documented Thai island-tour personal-transfer fraud script. Real TAT-licensed operators accept payment into a registered business account, issue a receipt with the TAT license number, and publish cancellation terms in writing.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/risk_patterns.json",
+      "source_label": "Personal-transfer tour pattern (TAT consumer protection 1672, Bank of Thailand mule-account guidance)",
+      "citations": [
+        {
+          "title": "TAT — How to verify a licensed tour operator",
+          "url": "https://www.tat.or.th/en/tourist/license-verification"
+        },
+        {
+          "title": "Bank of Thailand — Mule-account reporting and recovery",
+          "url": "https://www.bot.or.th/en/financial-consumer-protection/mule-accounts.html"
+        }
+      ],
+      "metadata": {
+        "interpreted_signals": [
+          "Full advance payment requested",
+          "Payment account appears personal",
+          "Missing operator or TAT license details",
+          "Informal LINE-only sales channel",
+          "Time pressure or limited-time payment push"
+        ],
+        "has_full_advance_payment": true,
+        "has_personal_account": true,
+        "has_missing_license": true,
+        "grounding_source": "curated"
+      }
+    },
+    {
+      "tool": "qr_payment_reference",
+      "title": "Personal Kasikorn account verification",
+      "summary": "Recipient account is in the name 'Nattapong S.' — an individual, not the 'Andaman Explorer Tours' brand the tourist is paying. Bank transfers to a name that does not match the seller's brand cannot be reversed through standard chargeback. Kasikorn's fraud line (02-888-8888) can flag the account but cannot recover funds after 24 hours in most cases.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/risk_patterns.json",
+      "source_label": "QR / personal-account mismatch pattern (TrustPass curated)",
+      "metadata": {
+        "interpreted_signals": [
+          "Payment account appears personal or mismatched",
+          "Account holder name does not match the seller brand",
+          "No business identity verifiable"
+        ],
+        "has_account_mismatch": true,
+        "grounding_source": "curated"
+      }
+    },
+    {
+      "tool": "location",
+      "title": "Phuket island-tour booking hot-zone",
+      "summary": "Phi Phi + Maya Bay packages are the most-sold tourist activity in Phuket. Licensed operators charge ~1,500-2,500 THB per person for the same itinerary via TAT-verified platforms; 2,999 THB via a personal account is above the legitimate range and below the high-end private-charter range, which is typical of the pretext-style fraud pricing.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/location_context.json",
+      "source_label": "Phuket island-tour pricing reference (TrustPass curated)",
+      "metadata": {
+        "zone": "phuket_island_tour",
+        "grounding_source": "curated"
+      }
+    }
+  ],
+  "source": "demo-mode-cache",
+  "trusted_operator": {
+    "operator_name": "Andaman Explorer Tours (unverified LINE seller)",
+    "status": "not_in_directory",
+    "operator_type": "tour",
+    "city": "Phuket",
+    "notes": "Not listed in the TrustPass verified tour-operator directory. No TAT license number provided. Verified Phuket island-tour operators (e.g. Andaman Eagle Tours TAT 34/00123, Phuket Island Tours TAT 34/00456) provide a written license and accept platform-escrow payment."
+  },
+  "community": {
+    "similar_incident_count": 4,
+    "window_days": 7,
+    "location_label": "Phuket LINE-only tour sellers",
+    "link_to_dashboard": "/dashboard?pattern=personal_transfer_tour"
+  }
+}

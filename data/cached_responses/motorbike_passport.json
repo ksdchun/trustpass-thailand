@@ -1,0 +1,107 @@
+{
+  "status": "completed",
+  "risk_level": "High",
+  "category": "Motorbike rental — original passport retained as deposit",
+  "signals": [
+    "Original passport requested as deposit",
+    "Damage policy resolved by cash at return time (no neutral inspection, no insurer)",
+    "No written rental contract or itemized receipt offered",
+    "Shop is not listed in the verified rental operator directory"
+  ],
+  "next_steps": [
+    "Do not hand over your original passport. Offer a photocopy of the passport ID page plus a cash deposit (typical 2,000-5,000 THB for a scooter).",
+    "Ask for a written rental contract that lists the daily rate, the damage policy, the deposit amount, and the return time before you sign or pay.",
+    "Photograph the entire scooter from 8 angles (front, back, both sides, both mirrors, seat, undercarriage) and ride briefly with the shop staff to confirm the condition.",
+    "If the shop refuses, walk away and use a hotel-recommended rental, Grab Bike rentals, or one of the TAT-verified Patong operators in the trusted-operator directory.",
+    "Save the shop name, exact address, and a photo of the contract template; if they keep your passport against your will from inside the shop, contact Tourist Police 1155."
+  ],
+  "why_it_matters": "Surrendering an original passport creates pressure leverage that the rental shop can use during a later damage dispute. The Royal Thai Police, Tourist Police 1155, and most embassies recommend never leaving an original passport as deposit for a vehicle rental. Combined with a 'cash now, no insurer, no police' damage policy, the situation matches the documented Patong scooter-rental pressure pattern that has cost tourists 10,000-50,000 THB in cash 'damage' claims for pre-existing scratches.",
+  "thai_phrase": "ขอใช้สำเนาพาสปอร์ตและวางเงินมัดจำแทนตัวจริงได้ไหมครับ/ค่ะ และขอสัญญาเช่าเป็นลายลักษณ์อักษร",
+  "evidence_to_save": [
+    "Rental contract text or template (photo)",
+    "Photos of the scooter from all angles BEFORE you ride",
+    "Shop name, exact address (Google Maps pin), and Google Maps phone number",
+    "Daily rate, deposit amount, and damage policy as written",
+    "Names of any shop staff who handle your passport",
+    "Receipt or written acknowledgement of any cash you pay"
+  ],
+  "contact_recommendation": "Do not pay or hand over the passport until the terms are written and clear. If the shop refuses a passport copy or refuses a written contract, simply walk away — there are many alternatives in Patong. Tourist Police 1155 is appropriate only if your passport has already been taken and the shop refuses to return it, if you are pressured or threatened, or if your insurer / embassy advises escalation.",
+  "report": {
+    "english": "TrustPass rental check in Phuket (Patong): High risk. Motorbike rental shop requested the original passport as deposit and stated that damage would be settled in cash at return time with no insurer and no police report. No written contract was offered. The pattern matches the documented Patong scooter-rental pressure script. Recommended actions: refuse to hand over the original passport, ask for a written contract, photograph the vehicle from all angles, and choose a TAT-verified or hotel-recommended rental shop instead.",
+    "thai": "รายงาน TrustPass ในภูเก็ต (ป่าตอง): ระดับ High ร้านเช่ารถมอเตอร์ไซค์ขอเก็บพาสปอร์ตเล่มจริงเป็นเงินมัดจำ และระบุว่ากรณีเสียหายจะให้จ่ายเงินสดที่ร้านโดยไม่มีบริษัทประกันและไม่ต้องแจ้งตำรวจ ไม่มีสัญญาเช่าเป็นลายลักษณ์อักษร รูปแบบสอดคล้องกับสคริปต์การกดดันลูกค้าของร้านเช่ามอเตอร์ไซค์ในย่านป่าตอง แนะนำให้ปฏิเสธการมอบพาสปอร์ตเล่มจริง ขอสัญญาเช่าเป็นลายลักษณ์อักษร ถ่ายภาพรถทุกมุมก่อนใช้ และเลือกร้านที่โรงแรมแนะนำหรืออยู่ในรายชื่อ TAT แทน"
+  },
+  "grounding": [
+    {
+      "tool": "rental_document_reference",
+      "title": "Passport-retention rental pattern",
+      "summary": "The shop is asking the tourist to leave the original passport as deposit and to settle damage in cash at return time with no insurer and no police. Both signals are documented levers for the Patong scooter-rental pressure pattern. Safer alternative: passport photocopy + 2,000-5,000 THB cash deposit + written contract + pre-rental photos.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/risk_patterns.json",
+      "source_label": "Rental passport-retention pattern (TrustPass curated, Thai Embassy travel advisories 2024)",
+      "citations": [
+        {
+          "title": "Royal Thai Embassy — Travel advice for tourists renting vehicles",
+          "url": "https://thaiembassy.com/thailand/renting-motorbike-thailand-safety"
+        }
+      ],
+      "metadata": {
+        "interpreted_signals": [
+          "Original passport requested as deposit",
+          "Damage settled in cash at return, no insurer, no police report",
+          "No written rental contract offered"
+        ],
+        "has_original_passport_request": true,
+        "grounding_source": "curated"
+      }
+    },
+    {
+      "tool": "damage_claim_reference",
+      "title": "Pre-emptive damage-policy red flags",
+      "summary": "Damage policy states 'customer pays cash at return time, no insurer, no police report needed'. This combination removes neutral inspection and creates leverage for inflated damage claims at return time. Documented Patong cases have escalated 200 THB scratches into 15,000-50,000 THB 'damage' demands when the original passport was held by the shop.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/risk_patterns.json",
+      "source_label": "Rental damage cash-pressure pattern (TrustPass curated)",
+      "metadata": {
+        "interpreted_signals": [
+          "Damage settled by cash on the spot",
+          "No insurer required",
+          "No police report required",
+          "Pressure structure depends on the passport being held"
+        ],
+        "has_no_receipt": true,
+        "has_immediate_cash_payment": true,
+        "damage_amount_severity": "elevated",
+        "grounding_source": "curated"
+      }
+    },
+    {
+      "tool": "location",
+      "title": "Patong scooter-rental hot-zone",
+      "summary": "Soi Rat-U-Thit and the central Patong beach road have the highest number of reported scooter-rental damage disputes in Phuket according to the Phuket Tourist Police 1155 dashboard. Passport-retention is a documented pressure script in this area.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/location_context.json",
+      "source_label": "Phuket Patong tourist zone (TrustPass curated)",
+      "metadata": {
+        "zone": "patong_beach",
+        "grounding_source": "curated"
+      }
+    }
+  ],
+  "source": "demo-mode-cache",
+  "trusted_operator": {
+    "operator_name": "Soi Rat-U-Thit Scooter Rental (no TAT license shown)",
+    "status": "not_in_directory",
+    "operator_type": "rental",
+    "city": "Phuket",
+    "notes": "Not listed in the TrustPass verified rental directory. Verified Patong rentals (e.g. Bumblebee Bikes, Phuket Scooter Rental Pro) provide a written contract, accept a passport copy, and use a third-party insurer for damage claims. Ask your hotel concierge for a referral."
+  },
+  "community": {
+    "similar_incident_count": 6,
+    "window_days": 7,
+    "location_label": "Patong, Phuket scooter-rental cluster",
+    "link_to_dashboard": "/dashboard?pattern=passport_retention"
+  }
+}

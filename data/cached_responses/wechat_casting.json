@@ -1,0 +1,118 @@
+{
+  "status": "completed",
+  "risk_level": "Emergency",
+  "category": "Fake casting or job luring with cross-border trafficking risk",
+  "signals": [
+    "Job or casting offer from informal channel",
+    "Controlled pickup or free transport offered",
+    "Travel toward Mae Sot, Myanmar, or border area",
+    "Secrecy or isolation instruction (do not tell hotel or friends)",
+    "Request to surrender or hand over phone at the meeting point"
+  ],
+  "next_steps": [
+    "Do not get into the driver's vehicle and do not travel to Mae Sot, Myanmar border, or any unspecified studio location.",
+    "Stay in a public place inside your hotel or a busy mall and tell hotel front-desk staff what is happening now.",
+    "Save every WeChat message, the recruiter's profile name and ID, the driver's name, vehicle make and plate, and the pickup location and time.",
+    "Call Tourist Police 1155 (24/7 English line) or your country's embassy/consulate from a safe place and report the lure before declining the offer.",
+    "If you are Chinese national, contact the Chinese Embassy Bangkok consular protection hotline: +66-2-2477-554 or +86-10-12308."
+  ],
+  "why_it_matters": "This situation matches the Wang Xing case pattern documented by Reuters, AP, and the Guardian in January 2025: a Chinese-language WeChat casting/modeling offer, a free pickup, a driver who transports the victim toward Mae Sot near the Myanmar border, and an instruction to keep the trip secret from hotel and family. That pattern has been used to traffic tourists into scam-compound forced labour in Myawaddy and Shwe Kokko. The combination of recruitment + controlled transport + border travel + secrecy is treated as an Emergency because reversal is extremely difficult once the border is crossed.",
+  "thai_phrase": "ขอเวลาตรวจสอบก่อนเดินทางครับ/ค่ะ ฉันจะติดต่อโรงแรมและตำรวจท่องเที่ยวก่อน",
+  "evidence_to_save": [
+    "Full chat history with the recruiter (screenshots of every message, profile picture, and WeChat ID)",
+    "Recruiter's phone number, WeChat ID, and any other contact channels",
+    "Driver's name, vehicle make, model, color, and plate number if you can see it safely",
+    "Pickup location, agreed meeting time, and any address mentioned for the 'studio' or 'interview'",
+    "Any payment offers, ID requests, or instructions to bring or hide specific items",
+    "Casting flyer, headshot request, or contract PDF if one was sent"
+  ],
+  "contact_recommendation": "This is an Emergency-level safety lure. From a public safe place, call Tourist Police 1155 immediately (English support, 24/7). If you are a Chinese national contact the Chinese Embassy in Bangkok consular protection line +66-2-2477-554 (or +86-10-12308 from outside Thailand). Tell hotel security and ask them to stay with you until help arrives. Do not meet the driver and do not travel to Mae Sot or any border location.",
+  "report": {
+    "english": "TrustPass safety check in Mae Sot border area: Emergency risk for fake casting / job luring with cross-border trafficking signals. A WeChat recruiter offered a paid casting role with free airport pickup, transport to Mae Sot for a 'final interview', and instructed the tourist not to tell hotel or family. Pattern matches the Wang Xing case (January 2025, ~10,000 Chinese cancellations to Thailand) and is consistent with reported scam-compound luring routes into Myawaddy / Shwe Kokko, Myanmar. Recommended actions: refuse the pickup, stay in a public place, save all chat evidence, and call Tourist Police 1155 and the relevant embassy from safety.",
+    "thai": "รายงาน TrustPass ในพื้นที่ชายแดนแม่สอด: ระดับ Emergency สำหรับการชักชวนแบบหลอกลวงเข้าทำงาน/แคสติ้ง ที่มีสัญญาณการค้ามนุษย์ข้ามแดน ผู้รับสมัครทาง WeChat เสนองานแคสติ้งพร้อมรับ-ส่งฟรีจากสนามบินไปแม่สอดเพื่อ 'สัมภาษณ์ครั้งสุดท้าย' และสั่งห้ามบอกโรงแรมหรือครอบครัว รูปแบบนี้สอดคล้องกับคดี Wang Xing (มกราคม 2025) และเส้นทางการล่อลวงเข้าสู่ Myawaddy / Shwe Kokko ฝั่งเมียนมาร์ แนะนำให้ปฏิเสธการเดินทาง อยู่ในที่สาธารณะ เก็บหลักฐานทั้งหมด และโทรศัพท์แจ้งตำรวจท่องเที่ยว 1155 รวมถึงสถานทูตที่เกี่ยวข้องจากที่ปลอดภัย"
+  },
+  "grounding": [
+    {
+      "tool": "job_lure_reference",
+      "title": "Fake casting / Mae Sot luring pattern",
+      "summary": "Recruitment via informal channel (WeChat) + controlled pickup + travel toward Mae Sot/Myanmar border + secrecy instruction. The combination is treated as a critical safety pattern because reversal is extremely difficult once the border is crossed. Mae Sot has been reported as the most common Thailand-side staging point for trafficking into Myawaddy scam compounds since 2022.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/risk_patterns.json",
+      "source_label": "Fake casting / job luring pattern (Wang Xing case, Reuters, AP, Guardian, Jan 2025)",
+      "citations": [
+        {
+          "title": "Reuters — Chinese actor Wang Xing rescued from scam compound (Jan 2025)",
+          "url": "https://www.reuters.com/world/asia-pacific/chinese-actor-wang-xing-rescued-myanmar-2025-01-07/"
+        },
+        {
+          "title": "Guardian — Thailand-Myanmar border scam compound luring",
+          "url": "https://www.theguardian.com/global-development/2025/jan/thailand-myanmar-scam-compounds"
+        },
+        {
+          "title": "Associated Press — Chinese tourist cancellations after Wang Xing case",
+          "url": "https://apnews.com/article/thailand-tourism-china-cancellations-2025"
+        }
+      ],
+      "metadata": {
+        "interpreted_signals": [
+          "Job or casting offer from informal channel",
+          "Controlled pickup or free transport offered",
+          "Travel toward Mae Sot, Myanmar, or border area",
+          "Secrecy or isolation instruction"
+        ],
+        "has_controlled_pickup": true,
+        "has_border_travel": true,
+        "has_secrecy_instruction": true,
+        "pattern_id": "fake_job_casting_lure",
+        "grounding_source": "curated"
+      }
+    },
+    {
+      "tool": "location",
+      "title": "Mae Sot border zone context",
+      "summary": "Mae Sot, Tak province, is the primary Thai land border crossing into Myawaddy, Myanmar. Tha-Sai Lan-Lay friendship bridge has been used by trafficking rings to move recruited tourists into compounds in Shwe Kokko since 2022. Travel from Bangkok to Mae Sot is ~7 hours by car; flights via Mae Sot Airport (HKT-MAQ) connect through Chiang Mai.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/location_context.json",
+      "source_label": "Mae Sot/Myawaddy corridor context (UNODC, US State Dept TIP report)",
+      "metadata": {
+        "zone": "mae_sot_border",
+        "country": "TH",
+        "neighbouring": "MM",
+        "grounding_source": "curated"
+      }
+    },
+    {
+      "tool": "operator_payment_reference",
+      "title": "Recruiter trust check",
+      "summary": "The WeChat recruiter is not affiliated with any registered Thai talent agency or TAT-licensed operator. Real Thailand-based casting calls are issued by registered companies and do not require travel to border provinces, do not require the candidate to hide the trip from their hotel, and do not bundle 'free transport + accommodation + phone surrender'.",
+      "confidence": "high",
+      "confidence_percentage": 95,
+      "source_file": "data/verified_operators.demo.json",
+      "source_label": "Trusted operator directory (TrustPass demo dataset)",
+      "metadata": {
+        "interpreted_signals": [
+          "Recruiter not in trusted operator directory",
+          "No TAT license number provided",
+          "Informal channel (WeChat) for a job that requires international travel"
+        ],
+        "grounding_source": "curated"
+      }
+    }
+  ],
+  "source": "demo-mode-cache",
+  "trusted_operator": {
+    "operator_name": "WeChat casting recruiter (unverified)",
+    "status": "not_in_directory",
+    "operator_type": "tour",
+    "city": "Mae Sot",
+    "notes": "No TAT license number provided. Recruiter is not in the TrustPass verified operator directory. Real Thai casting agencies do not require travel to border provinces or instruct candidates to hide the trip from their hotel."
+  },
+  "community": {
+    "similar_incident_count": 3,
+    "window_days": 7,
+    "location_label": "Mae Sot border area",
+    "link_to_dashboard": "/dashboard?pattern=fake_job_casting_lure"
+  }
+}

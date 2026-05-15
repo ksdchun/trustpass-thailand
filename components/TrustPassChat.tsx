@@ -407,7 +407,12 @@ export function TrustPassChat() {
       return;
     }
 
-    const nextResult = situationToRiskResult(payload);
+    // Minimal forward-compat shim for the new `degraded` status added by Agent B.
+    // Agent C will replace this with a proper degraded-state banner UI; for now
+    // we surface the embedded fallback_result so the user still gets a useful
+    // assessment even when Azure OpenAI is unavailable.
+    const completed = payload.status === "degraded" ? payload.fallback_result : payload;
+    const nextResult = situationToRiskResult(completed);
     persistCase(nextResult, body.city);
     setPendingClarification(null);
     setPendingMismatch(null);

@@ -1,0 +1,2119 @@
+{
+  "timestamp_iso": "2026-05-15T18:23:36.685Z",
+  "model": "unknown",
+  "base_url": "http://localhost:3100",
+  "case_count": 50,
+  "summary": {
+    "risk_level_accuracy": 0.8,
+    "risk_level_proximity": 0.94,
+    "category_recall": 0.84,
+    "signal_f1": 0.96268,
+    "grounding_tool_coverage": 1,
+    "latency_p50_ms": 54,
+    "latency_p95_ms": 62
+  },
+  "per_case": [
+    {
+      "id": "wechat-casting-mae-sot-01",
+      "tags": [
+        "hero",
+        "emergency",
+        "vision-relevant"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Emergency",
+      "actual_level": "Emergency",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Fake casting or job luring",
+      "category_match": true,
+      "category_keywords": [
+        "casting",
+        "luring",
+        "trafficking",
+        "job",
+        "mae sot"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Travel toward Mae Sot, Myanmar, or border area",
+        "Secrecy or isolation instruction"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Travel toward Mae Sot, Myanmar, or border area",
+        "Secrecy or isolation instruction"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Job or casting offer from informal channel",
+        "Controlled pickup or free transport offered",
+        "Travel toward Mae Sot, Myanmar, or border area",
+        "Secrecy or isolation instruction"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "job_lure_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "job_lure_reference"
+      ],
+      "latency_ms": 101
+    },
+    {
+      "id": "taxi-meter-broken-siam-wat-pho-01",
+      "tags": [
+        "hero",
+        "high",
+        "taxi"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Taxi fare far above route baseline",
+      "category_match": true,
+      "category_keywords": [
+        "taxi",
+        "fare",
+        "overcharg"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Meter refusal or meter unavailable"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Meter refusal or meter unavailable"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Meter refusal or meter unavailable",
+        "Fixed fare quote above route baseline",
+        "Extreme fixed fare quote about 7.1x above route baseline"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "route_distance",
+        "fare_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "fare_reference"
+      ],
+      "latency_ms": 56
+    },
+    {
+      "id": "motorbike-passport-patong-01",
+      "tags": [
+        "hero",
+        "high",
+        "rental"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Rental passport risk",
+      "category_match": true,
+      "category_keywords": [
+        "passport",
+        "rental"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Original passport requested as deposit"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Original passport requested as deposit"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Original passport requested as deposit",
+        "Deposit or contract terms need written confirmation",
+        "Vehicle rental context creates document leverage risk"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "rental_document_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "rental_document_reference"
+      ],
+      "latency_ms": 57
+    },
+    {
+      "id": "line-tour-personal-account-01",
+      "tags": [
+        "hero",
+        "high",
+        "tour"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Suspicious tour payment",
+      "category_match": true,
+      "category_keywords": [
+        "tour",
+        "payment",
+        "operator"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Full advance payment requested",
+        "Payment account appears personal",
+        "Missing operator or TAT license details"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Full advance payment requested",
+        "Payment account appears personal",
+        "Missing operator or TAT license details"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Full advance payment requested",
+        "Payment account appears personal",
+        "Missing operator or TAT license details",
+        "Informal LINE-only sales channel",
+        "Time pressure or limited-time payment push"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "operator_payment_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "operator_payment_reference"
+      ],
+      "latency_ms": 53
+    },
+    {
+      "id": "legit-grab-asoke-phrom-phong-01",
+      "tags": [
+        "negative",
+        "low",
+        "taxi"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "No strong scam pattern detected",
+      "category_match": true,
+      "category_keywords": [
+        "no strong",
+        "normal",
+        "no scam"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Meter refusal or meter unavailable"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 57
+    },
+    {
+      "id": "jay-fai-crab-omelette-01",
+      "tags": [
+        "negative",
+        "low",
+        "food"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Jay Fai price context",
+      "category_match": true,
+      "category_keywords": [
+        "jay fai",
+        "premium",
+        "price context",
+        "normal"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "venue_reference",
+        "food_price_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "food_price_reference"
+      ],
+      "latency_ms": 53
+    },
+    {
+      "id": "verified-operator-qr-01",
+      "tags": [
+        "negative",
+        "low",
+        "qr"
+      ],
+      "passed": false,
+      "status": "out_of_scope",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Out of scope. TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      "category_match": false,
+      "category_keywords": [
+        "no strong",
+        "normal",
+        "no scam"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Payment account appears personal or mismatched"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 10
+    },
+    {
+      "id": "motorbike-passport-copy-01",
+      "tags": [
+        "negative",
+        "low",
+        "rental"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "No strong scam pattern detected",
+      "category_match": true,
+      "category_keywords": [
+        "no strong",
+        "normal",
+        "no scam",
+        "rental"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Original passport requested as deposit"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Deposit or contract terms need written confirmation",
+        "Vehicle rental context creates document leverage risk"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "rental_document_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 58
+    },
+    {
+      "id": "legit-tat-tour-01",
+      "tags": [
+        "negative",
+        "low",
+        "tour"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "No strong scam pattern detected",
+      "category_match": true,
+      "category_keywords": [
+        "no strong",
+        "normal",
+        "no scam"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Payment account appears personal",
+        "Missing operator or TAT license details"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 69
+    },
+    {
+      "id": "normal-taxi-siam-wat-pho-01",
+      "tags": [
+        "negative",
+        "low",
+        "taxi"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Normal taxi fare",
+      "category_match": true,
+      "category_keywords": [
+        "taxi",
+        "normal",
+        "fare"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Meter refusal or meter unavailable"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "route_distance",
+        "fare_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "fare_reference"
+      ],
+      "latency_ms": 55
+    },
+    {
+      "id": "mall-food-court-siam-paragon-01",
+      "tags": [
+        "negative",
+        "low",
+        "food"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Siam Paragon / Department-store restaurant zone price context",
+      "category_match": true,
+      "category_keywords": [
+        "food",
+        "price",
+        "normal",
+        "context"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "venue_reference",
+        "food_price_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "food_price_reference"
+      ],
+      "latency_ms": 54
+    },
+    {
+      "id": "mae-sot-visa-run-01",
+      "tags": [
+        "negative",
+        "low",
+        "border",
+        "known-edge"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Emergency",
+      "risk_level_exact": false,
+      "risk_level_proximity": false,
+      "actual_category": "Fake casting or job luring",
+      "category_match": false,
+      "category_keywords": [
+        "travel",
+        "border",
+        "safety",
+        "no strong"
+      ],
+      "signal_f1": 0,
+      "signal_precision": 0,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Job or casting offer from informal channel",
+        "Controlled pickup or free transport offered",
+        "Secrecy or isolation instruction"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [
+        "Controlled pickup or free transport offered"
+      ],
+      "actual_signals": [
+        "Controlled pickup or free transport offered",
+        "Travel toward Mae Sot, Myanmar, or border area"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "job_lure_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 50
+    },
+    {
+      "id": "legit-songkran-01",
+      "tags": [
+        "negative",
+        "low",
+        "event"
+      ],
+      "passed": false,
+      "status": "out_of_scope",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Out of scope. TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      "category_match": false,
+      "category_keywords": [
+        "no strong",
+        "normal",
+        "songkran",
+        "event"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 10
+    },
+    {
+      "id": "registered-tour-tat-license-01",
+      "tags": [
+        "negative",
+        "low",
+        "tour"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "No strong scam pattern detected",
+      "category_match": true,
+      "category_keywords": [
+        "no strong",
+        "normal",
+        "no scam"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Missing operator or TAT license details",
+        "Payment account appears personal"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 50
+    },
+    {
+      "id": "passport-copy-original-ambiguous-01",
+      "tags": [
+        "edge",
+        "caution"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Low",
+      "risk_level_exact": false,
+      "risk_level_proximity": true,
+      "actual_category": "No strong scam pattern detected",
+      "category_match": false,
+      "category_keywords": [
+        "passport",
+        "rental"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Deposit or contract terms need written confirmation",
+        "Vehicle rental context creates document leverage risk"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "rental_document_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 49
+    },
+    {
+      "id": "premium-seafood-2000-thb-01",
+      "tags": [
+        "edge",
+        "caution",
+        "food"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "No strong scam pattern detected",
+      "category_match": false,
+      "category_keywords": [
+        "food",
+        "premium",
+        "price"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "venue_reference",
+        "food_price_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "food_price_reference"
+      ],
+      "latency_ms": 58
+    },
+    {
+      "id": "paragon-food-court-800-thb-01",
+      "tags": [
+        "edge",
+        "caution",
+        "food"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Caution",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Food price verification",
+      "category_match": true,
+      "category_keywords": [
+        "food",
+        "price"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Detected menu price 800 THB is about 1.5x above the Department-store or higher-end mall restaurant reference band"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "venue_reference",
+        "food_price_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "food_price_reference"
+      ],
+      "latency_ms": 53
+    },
+    {
+      "id": "tourist-zone-street-stall-350-01",
+      "tags": [
+        "edge",
+        "caution",
+        "food"
+      ],
+      "passed": true,
+      "status": "needs_clarification",
+      "expected_level": "Caution",
+      "actual_level": "Caution",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "More context needed. Is this really a street/local stall, or is it a sit-down, mall, seafood, or famous venue?",
+      "category_match": true,
+      "category_keywords": [
+        "food",
+        "price",
+        "street"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "venue_reference",
+        "food_price_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "food_price_reference"
+      ],
+      "latency_ms": 9
+    },
+    {
+      "id": "taxi-explained-tolls-waiting-01",
+      "tags": [
+        "edge",
+        "low",
+        "taxi"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "No strong scam pattern detected",
+      "category_match": false,
+      "category_keywords": [
+        "taxi",
+        "fare"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Meter refusal or meter unavailable"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "fare_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "fare_reference"
+      ],
+      "latency_ms": 53
+    },
+    {
+      "id": "mae-sot-vlogger-01",
+      "tags": [
+        "edge",
+        "low",
+        "border",
+        "known-edge"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Emergency",
+      "risk_level_exact": false,
+      "risk_level_proximity": false,
+      "actual_category": "Fake casting or job luring",
+      "category_match": false,
+      "category_keywords": [
+        "border",
+        "travel",
+        "no strong"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Job or casting offer from informal channel",
+        "Controlled pickup or free transport offered",
+        "Secrecy or isolation instruction"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Travel toward Mae Sot, Myanmar, or border area"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "job_lure_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 53
+    },
+    {
+      "id": "qr-small-business-personal-name-01",
+      "tags": [
+        "edge",
+        "caution",
+        "qr"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "High",
+      "risk_level_exact": false,
+      "risk_level_proximity": true,
+      "actual_category": "Payment identity mismatch",
+      "category_match": true,
+      "category_keywords": [
+        "qr",
+        "payment",
+        "account"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Payment account appears personal or mismatched"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "qr_payment_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 53
+    },
+    {
+      "id": "passport-deposit-with-receipt-01",
+      "tags": [
+        "edge",
+        "high"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Rental passport risk",
+      "category_match": true,
+      "category_keywords": [
+        "passport",
+        "rental"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Original passport requested as deposit"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Original passport requested as deposit"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Original passport requested as deposit",
+        "Deposit or contract terms need written confirmation",
+        "Vehicle rental context creates document leverage risk"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "rental_document_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "rental_document_reference"
+      ],
+      "latency_ms": 52
+    },
+    {
+      "id": "don-mueang-fixed-fare-airport-01",
+      "tags": [
+        "edge",
+        "low",
+        "taxi"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Caution",
+      "risk_level_exact": false,
+      "risk_level_proximity": true,
+      "actual_category": "Taxi overcharging",
+      "category_match": true,
+      "category_keywords": [
+        "taxi",
+        "fare"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Meter refusal or meter unavailable"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Fixed fare quote needs route/fare verification"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "fare_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "fare_reference"
+      ],
+      "latency_ms": 53
+    },
+    {
+      "id": "jet-ski-reasonable-damage-01",
+      "tags": [
+        "edge",
+        "low"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Normal rental damage documentation",
+      "category_match": true,
+      "category_keywords": [
+        "rental",
+        "damage",
+        "normal"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [
+        "Large cash damage demand without neutral inspection"
+      ],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "damage_claim_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "damage_claim_reference"
+      ],
+      "latency_ms": 56
+    },
+    {
+      "id": "prompt-injection-ocr-01",
+      "tags": [
+        "adversarial",
+        "low"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Emergency",
+      "risk_level_exact": false,
+      "risk_level_proximity": false,
+      "actual_category": "Fake casting or job luring",
+      "category_match": false,
+      "category_keywords": [
+        "scope",
+        "out",
+        "no strong",
+        "more context",
+        "evidence",
+        "mismatch"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Job or casting offer from informal channel"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "job_lure_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 54
+    },
+    {
+      "id": "ocr-no-relevant-content-01",
+      "tags": [
+        "adversarial",
+        "low"
+      ],
+      "passed": true,
+      "status": "out_of_scope",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Out of scope. TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      "category_match": true,
+      "category_keywords": [
+        "scope",
+        "out",
+        "no strong"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 11
+    },
+    {
+      "id": "evidence-topic-mismatch-01",
+      "tags": [
+        "adversarial",
+        "low",
+        "mismatch"
+      ],
+      "passed": false,
+      "status": "evidence_mismatch",
+      "expected_level": "Caution",
+      "actual_level": "Low",
+      "risk_level_exact": false,
+      "risk_level_proximity": true,
+      "actual_category": "Evidence mismatch. TrustPass treats OCR as supporting evidence. The typed situation and uploaded evidence should describe the same case before risk scoring.",
+      "category_match": true,
+      "category_keywords": [
+        "mismatch",
+        "evidence",
+        "taxi"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 10
+    },
+    {
+      "id": "generic-is-this-safe-01",
+      "tags": [
+        "adversarial",
+        "low"
+      ],
+      "passed": true,
+      "status": "out_of_scope",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Out of scope. TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      "category_match": true,
+      "category_keywords": [
+        "scope",
+        "out",
+        "more context"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 11
+    },
+    {
+      "id": "all-emoji-message-01",
+      "tags": [
+        "adversarial",
+        "low"
+      ],
+      "passed": true,
+      "status": "out_of_scope",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Out of scope. TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      "category_match": true,
+      "category_keywords": [
+        "scope",
+        "out",
+        "no strong"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 11
+    },
+    {
+      "id": "all-caps-panic-01",
+      "tags": [
+        "adversarial",
+        "caution"
+      ],
+      "passed": true,
+      "status": "out_of_scope",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Out of scope. TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      "category_match": true,
+      "category_keywords": [
+        "scope",
+        "out",
+        "more context"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 8
+    },
+    {
+      "id": "mixed-language-input-01",
+      "tags": [
+        "adversarial",
+        "high",
+        "multilingual"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Taxi fare far above route baseline",
+      "category_match": true,
+      "category_keywords": [
+        "taxi",
+        "fare",
+        "overcharg"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 0,
+      "signal_recall": 0,
+      "must_include_signals": [
+        "Meter refusal or meter unavailable"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Fixed fare quote above route baseline",
+        "Extreme fixed fare quote about 7.1x above route baseline"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "route_distance",
+        "fare_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "fare_reference"
+      ],
+      "latency_ms": 53
+    },
+    {
+      "id": "ocr-unrelated-stock-photo-01",
+      "tags": [
+        "adversarial",
+        "low"
+      ],
+      "passed": true,
+      "status": "out_of_scope",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Out of scope. TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      "category_match": true,
+      "category_keywords": [
+        "scope",
+        "out",
+        "no strong"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 9
+    },
+    {
+      "id": "taxi-mid-200-baht-01",
+      "tags": [
+        "mid",
+        "caution",
+        "taxi"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Caution",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Taxi fare verification",
+      "category_match": true,
+      "category_keywords": [
+        "taxi",
+        "fare"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Fixed fare quote above route baseline"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Fixed fare quote above route baseline"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Meter refusal or meter unavailable",
+        "Fixed fare quote above route baseline",
+        "Quoted fare is about 1.8x above route baseline"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "route_distance",
+        "fare_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "fare_reference"
+      ],
+      "latency_ms": 54
+    },
+    {
+      "id": "taxi-mid-pratunam-01",
+      "tags": [
+        "mid",
+        "caution",
+        "taxi"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Caution",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Taxi overcharging",
+      "category_match": true,
+      "category_keywords": [
+        "taxi",
+        "fare"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Meter refusal or meter unavailable"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "fare_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "fare_reference"
+      ],
+      "latency_ms": 55
+    },
+    {
+      "id": "taxi-extreme-2000-baht-01",
+      "tags": [
+        "mid",
+        "high",
+        "taxi"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Taxi fare far above route baseline",
+      "category_match": true,
+      "category_keywords": [
+        "taxi",
+        "fare",
+        "overcharg"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Meter refusal or meter unavailable"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Meter refusal or meter unavailable"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Meter refusal or meter unavailable",
+        "Fixed fare quote above route baseline",
+        "Extreme fixed fare quote about 17.7x above route baseline"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "route_distance",
+        "fare_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "fare_reference"
+      ],
+      "latency_ms": 56
+    },
+    {
+      "id": "food-mid-stall-pad-thai-300-01",
+      "tags": [
+        "mid",
+        "high",
+        "food"
+      ],
+      "passed": false,
+      "status": "needs_clarification",
+      "expected_level": "High",
+      "actual_level": "Caution",
+      "risk_level_exact": false,
+      "risk_level_proximity": true,
+      "actual_category": "More context needed. Is this really a street/local stall, or is it a sit-down, mall, seafood, or famous venue?",
+      "category_match": true,
+      "category_keywords": [
+        "food",
+        "price",
+        "above"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "venue_reference",
+        "food_price_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "food_price_reference"
+      ],
+      "latency_ms": 9
+    },
+    {
+      "id": "food-mid-stall-fried-rice-280-01",
+      "tags": [
+        "mid",
+        "caution",
+        "food"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Food price far above local reference",
+      "category_match": true,
+      "category_keywords": [
+        "food",
+        "price",
+        "above"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Detected menu price 280 THB is about 2.8x above the Street food / local stall reference band"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "venue_reference",
+        "food_price_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "food_price_reference"
+      ],
+      "latency_ms": 54
+    },
+    {
+      "id": "food-mid-paragon-pasta-450-01",
+      "tags": [
+        "mid",
+        "caution",
+        "food"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Low",
+      "actual_level": "Low",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Siam Paragon / Department-store restaurant zone price context",
+      "category_match": true,
+      "category_keywords": [
+        "food",
+        "price"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "venue_reference",
+        "food_price_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "food_price_reference"
+      ],
+      "latency_ms": 59
+    },
+    {
+      "id": "tour-mid-line-partial-info-01",
+      "tags": [
+        "mid",
+        "high",
+        "tour"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Suspicious tour payment",
+      "category_match": true,
+      "category_keywords": [
+        "tour",
+        "payment"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Full advance payment requested",
+        "Payment account appears personal"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Full advance payment requested",
+        "Payment account appears personal"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Full advance payment requested",
+        "Payment account appears personal",
+        "Informal LINE-only sales channel"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "operator_payment_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "operator_payment_reference"
+      ],
+      "latency_ms": 57
+    },
+    {
+      "id": "tour-mid-limited-time-01",
+      "tags": [
+        "mid",
+        "high",
+        "tour"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Suspicious tour payment",
+      "category_match": true,
+      "category_keywords": [
+        "tour",
+        "payment"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Full advance payment requested",
+        "Payment account appears personal",
+        "Missing operator or TAT license details"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Full advance payment requested",
+        "Payment account appears personal",
+        "Missing operator or TAT license details"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Full advance payment requested",
+        "Payment account appears personal",
+        "Missing operator or TAT license details",
+        "Time pressure or limited-time payment push"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "operator_payment_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "operator_payment_reference"
+      ],
+      "latency_ms": 52
+    },
+    {
+      "id": "tour-mid-deposit-now-01",
+      "tags": [
+        "mid",
+        "caution",
+        "tour"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Suspicious tour payment",
+      "category_match": true,
+      "category_keywords": [
+        "tour",
+        "payment"
+      ],
+      "signal_f1": 0.667,
+      "signal_precision": 1,
+      "signal_recall": 0.5,
+      "must_include_signals": [
+        "Full advance payment requested",
+        "Missing operator or TAT license details"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Full advance payment requested"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Full advance payment requested",
+        "Payment account appears personal"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "operator_payment_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "operator_payment_reference"
+      ],
+      "latency_ms": 55
+    },
+    {
+      "id": "rental-mid-passport-with-deposit-01",
+      "tags": [
+        "mid",
+        "high",
+        "rental"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Rental passport risk",
+      "category_match": true,
+      "category_keywords": [
+        "passport",
+        "rental"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Original passport requested as deposit"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Original passport requested as deposit"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Original passport requested as deposit",
+        "Deposit or contract terms need written confirmation",
+        "Vehicle rental context creates document leverage risk"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "rental_document_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "rental_document_reference"
+      ],
+      "latency_ms": 55
+    },
+    {
+      "id": "rental-mid-vague-deposit-01",
+      "tags": [
+        "mid",
+        "caution",
+        "rental"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Low",
+      "risk_level_exact": false,
+      "risk_level_proximity": true,
+      "actual_category": "No strong scam pattern detected",
+      "category_match": true,
+      "category_keywords": [
+        "rental",
+        "deposit",
+        "no strong"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Deposit or contract terms need written confirmation",
+        "Vehicle rental context creates document leverage risk"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "rental_document_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 58
+    },
+    {
+      "id": "damage-mid-jet-ski-20k-no-receipt-01",
+      "tags": [
+        "mid",
+        "high",
+        "damage"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Rental damage cash pressure",
+      "category_match": true,
+      "category_keywords": [
+        "damage",
+        "rental",
+        "pressure"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Large cash damage demand without neutral inspection",
+        "No receipt or written damage estimate offered"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Large cash damage demand without neutral inspection",
+        "No receipt or written damage estimate offered"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Large cash damage demand without neutral inspection",
+        "Immediate cash payment requested",
+        "No receipt or written damage estimate offered",
+        "Pressure to avoid police, insurer, or neutral process",
+        "Rental damage claim under pressure",
+        "Damage demand is 20,000 THB, about 6.7x the demo minor-damage threshold"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "damage_claim_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "damage_claim_reference"
+      ],
+      "latency_ms": 62
+    },
+    {
+      "id": "damage-mid-motorbike-scratch-cash-now-01",
+      "tags": [
+        "mid",
+        "high",
+        "damage"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Rental damage cash pressure",
+      "category_match": true,
+      "category_keywords": [
+        "damage",
+        "rental",
+        "pressure"
+      ],
+      "signal_f1": 0.8,
+      "signal_precision": 1,
+      "signal_recall": 0.667,
+      "must_include_signals": [
+        "Large cash damage demand without neutral inspection",
+        "No receipt or written damage estimate offered",
+        "Pressure to avoid police, insurer, or neutral process"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Large cash damage demand without neutral inspection",
+        "No receipt or written damage estimate offered"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Large cash damage demand without neutral inspection",
+        "Immediate cash payment requested",
+        "No receipt or written damage estimate offered",
+        "Rental damage claim under pressure",
+        "Damage demand is 15,000 THB, about 5x the demo minor-damage threshold"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "damage_claim_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "damage_claim_reference"
+      ],
+      "latency_ms": 49
+    },
+    {
+      "id": "qr-mid-account-mismatch-01",
+      "tags": [
+        "mid",
+        "high",
+        "qr"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "High",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Payment identity mismatch",
+      "category_match": true,
+      "category_keywords": [
+        "qr",
+        "payment",
+        "account"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Payment account appears personal or mismatched",
+        "QR payment requested before identity is verified"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Payment account appears personal or mismatched",
+        "QR payment requested before identity is verified"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Payment account appears personal or mismatched",
+        "QR payment requested before identity is verified",
+        "Business identity is missing or unclear"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "qr_payment_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "qr_payment_reference"
+      ],
+      "latency_ms": 54
+    },
+    {
+      "id": "qr-mid-no-business-name-01",
+      "tags": [
+        "mid",
+        "caution",
+        "qr"
+      ],
+      "passed": true,
+      "status": "needs_clarification",
+      "expected_level": "Caution",
+      "actual_level": "Caution",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "More context needed. Does the QR/payment account name match the business or tour operator name?",
+      "category_match": true,
+      "category_keywords": [
+        "qr",
+        "payment",
+        "account"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [],
+      "must_not_include_signals": [],
+      "matched_must_include": [],
+      "matched_forbidden": [],
+      "actual_signals": [],
+      "grounding_tools_present": [
+        "location",
+        "qr_payment_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 9
+    },
+    {
+      "id": "tuktuk-detour-gem-shop-01",
+      "tags": [
+        "mid",
+        "caution",
+        "tuk-tuk"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Caution",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Tuk-tuk detour or commission stop",
+      "category_match": true,
+      "category_keywords": [
+        "tuk-tuk",
+        "detour",
+        "shop"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Attraction closure claim redirects the route",
+        "Shop detour or commission stop suggested"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Attraction closure claim redirects the route",
+        "Shop detour or commission stop suggested"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Attraction closure claim redirects the route",
+        "Shop detour or commission stop suggested",
+        "Special-price pressure used to change plan"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 54
+    },
+    {
+      "id": "tuktuk-detour-tailor-shop-01",
+      "tags": [
+        "mid",
+        "caution",
+        "tuk-tuk"
+      ],
+      "passed": true,
+      "status": "completed",
+      "expected_level": "Caution",
+      "actual_level": "Caution",
+      "risk_level_exact": true,
+      "risk_level_proximity": true,
+      "actual_category": "Tuk-tuk detour or commission stop",
+      "category_match": true,
+      "category_keywords": [
+        "tuk-tuk",
+        "detour",
+        "shop"
+      ],
+      "signal_f1": 0.667,
+      "signal_precision": 1,
+      "signal_recall": 0.5,
+      "must_include_signals": [
+        "Attraction closure claim redirects the route",
+        "Shop detour or commission stop suggested"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Shop detour or commission stop suggested"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Shop detour or commission stop suggested",
+        "Special-price pressure used to change plan"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [],
+      "latency_ms": 59
+    },
+    {
+      "id": "casting-pickup-pattaya-01",
+      "tags": [
+        "mid",
+        "high",
+        "job-lure"
+      ],
+      "passed": false,
+      "status": "completed",
+      "expected_level": "High",
+      "actual_level": "Emergency",
+      "risk_level_exact": false,
+      "risk_level_proximity": true,
+      "actual_category": "Fake casting or job luring",
+      "category_match": true,
+      "category_keywords": [
+        "casting",
+        "luring",
+        "job"
+      ],
+      "signal_f1": 1,
+      "signal_precision": 1,
+      "signal_recall": 1,
+      "must_include_signals": [
+        "Job or casting offer from informal channel",
+        "Controlled pickup or free transport offered"
+      ],
+      "must_not_include_signals": [],
+      "matched_must_include": [
+        "Job or casting offer from informal channel",
+        "Controlled pickup or free transport offered"
+      ],
+      "matched_forbidden": [],
+      "actual_signals": [
+        "Job or casting offer from informal channel",
+        "Controlled pickup or free transport offered"
+      ],
+      "grounding_tools_present": [
+        "location",
+        "job_lure_reference",
+        "web_grounding"
+      ],
+      "grounding_tools_missing": [],
+      "min_grounding_tools": [
+        "job_lure_reference"
+      ],
+      "latency_ms": 55
+    }
+  ]
+}

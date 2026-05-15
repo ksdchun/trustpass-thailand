@@ -9,6 +9,7 @@ export type IntelligenceReport = {
   risk_level: string;
   risk_score: number;
   signal_count: number;
+  referrer?: string;
 };
 
 type RiskCounts = {
@@ -32,7 +33,15 @@ export type CityIntelligenceStats = {
 declare global {
   // eslint-disable-next-line no-var
   var __trustpassStore: IntelligenceReport[] | undefined;
+  // eslint-disable-next-line no-var
+  var __trustpassHotelReferrals: Record<string, HotelReferralEntry> | undefined;
 }
+
+export type HotelReferralEntry = {
+  hotel: string;
+  count: number;
+  recentTimestamps: string[];
+};
 
 const getRiskScore = (level: string): number => {
   switch (level.toLowerCase()) {
@@ -79,50 +88,51 @@ const createMockReport = (city: string, category: string, level: string, maxDays
   category,
   risk_level: level,
   risk_score: getRiskScore(level),
-  signal_count: Math.floor(Math.random() * 3) + 2, // 2-4 signals
+  signal_count: Math.floor(Math.random() * 3) + 2,
 });
 
 const seedReports = (): IntelligenceReport[] => {
   const reports: IntelligenceReport[] = [];
 
-  // Bangkok: 35 reports
+  // Bangkok
   for (let i = 0; i < 12; i++) reports.push(createMockReport("Bangkok", "taxi_overcharging", "High", 7));
   for (let i = 0; i < 10; i++) reports.push(createMockReport("Bangkok", "tour_payment_fraud", "Caution", 7));
   for (let i = 0; i < 5; i++) reports.push(createMockReport("Bangkok", "fake_job_luring", "Emergency", 7));
   for (let i = 0; i < 5; i++) reports.push(createMockReport("Bangkok", "rental_passport_retention", "High", 7));
   for (let i = 0; i < 3; i++) reports.push(createMockReport("Bangkok", "qr_payment_fraud", "Caution", 7));
 
-  // Phuket: 8 reports
+  // Phuket
   for (let i = 0; i < 5; i++) reports.push(createMockReport("Phuket", "rental_passport_retention", "High", 7));
   for (let i = 0; i < 3; i++) reports.push(createMockReport("Phuket", "tour_payment_fraud", "Caution", 7));
 
-  // Pattaya: 7 reports
+  // Pattaya
   for (let i = 0; i < 4; i++) reports.push(createMockReport("Pattaya", "tour_payment_fraud", "Caution", 7));
   for (let i = 0; i < 3; i++) reports.push(createMockReport("Pattaya", "taxi_overcharging", "High", 7));
 
-  // Chiang Mai: 5 reports
+  // Chiang Mai
   for (let i = 0; i < 2; i++) reports.push(createMockReport("Chiang Mai", "tour_payment_fraud", "Caution", 7));
   for (let i = 0; i < 2; i++) reports.push(createMockReport("Chiang Mai", "rental_passport_retention", "High", 7));
   for (let i = 0; i < 1; i++) reports.push(createMockReport("Chiang Mai", "fake_job_luring", "Emergency", 7));
 
-  // Mae Sot: 4 reports
+  // Mae Sot — emphasis on fake-job-luring corridor (hero scenario backing).
   for (let i = 0; i < 4; i++) reports.push(createMockReport("Mae Sot", "fake_job_luring", "Emergency", 2));
+  for (let i = 0; i < 3; i++) reports.push(createMockReport("Mae Sot", "fake_job_luring", "Emergency", 6));
 
-  // Krabi: 2 reports
+  // Krabi
   for (let i = 0; i < 2; i++) reports.push(createMockReport("Krabi", "tour_payment_fraud", "Caution", 7));
 
-  // Koh Samui: 2 reports
+  // Koh Samui
   for (let i = 0; i < 2; i++) reports.push(createMockReport("Koh Samui", "tour_payment_fraud", "Caution", 7));
 
-  // Chiang Rai: 3 reports
+  // Chiang Rai
   for (let i = 0; i < 1; i++) reports.push(createMockReport("Chiang Rai", "tour_payment_fraud", "Caution", 7));
   for (let i = 0; i < 2; i++) reports.push(createMockReport("Chiang Rai", "fake_job_luring", "Emergency", 7));
 
-  // Sort by timestamp descending (newest first)
   return reports.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 };
 
 export const store = globalThis.__trustpassStore ??= seedReports();
+const hotelReferrals: Record<string, HotelReferralEntry> = globalThis.__trustpassHotelReferrals ??= {};
 
 export const isIntelligenceEligible = (result: RiskCheckResult): boolean => {
   if (result.risk_level === "Low") return false;
@@ -140,7 +150,11 @@ const isReportEligible = (report: IntelligenceReport): boolean => {
   return true;
 };
 
-export const recordCheck = (result: RiskCheckResult, city: string): void => {
+export type RecordCheckOptions = {
+  referrer?: string;
+};
+
+export const recordCheck = (result: RiskCheckResult, city: string, options?: RecordCheckOptions): void => {
   if (!isIntelligenceEligible(result)) return;
 
   const newReport: IntelligenceReport = {
@@ -151,8 +165,14 @@ export const recordCheck = (result: RiskCheckResult, city: string): void => {
     risk_level: result.risk_level,
     risk_score: getRiskScore(result.risk_level),
     signal_count: result.suspicious_signals?.length || 0,
+    referrer: options?.referrer,
   };
-  store.unshift(newReport); // Add to beginning
+  store.unshift(newReport);
+
+  if (options?.referrer) {
+    const hotelName = parseHotelReferrer(options.referrer);
+    if (hotelName) recordHotelReferral(hotelName);
+  }
 };
 
 export const getRecentReports = (limit = 10): IntelligenceReport[] => {
@@ -181,36 +201,36 @@ export const getCityStats = (): Record<string, CityIntelligenceStats> => {
       };
     }
     const cityStat = stats[report.city];
-    
+
     cityStat.total += 1;
     const riskBucket = getRiskBucket(report.risk_level);
     cityStat.riskCounts[riskBucket] += 1;
     if (riskBucket === "Emergency") {
       cityStat.emergency += 1;
     }
-    
+
     cityStat.categoryCounts[report.category] = (cityStat.categoryCounts[report.category] || 0) + 1;
     cityStat.riskScoreTotal += report.risk_score;
-    
+
     if (report.risk_score > cityStat.maxRiskScore) {
       cityStat.maxRiskScore = report.risk_score;
     }
   });
 
   const finalStats: Record<string, CityIntelligenceStats> = {};
-  
+
   for (const city in stats) {
     const cityData = stats[city];
     let topCategory = "";
     let maxCount = 0;
-    
+
     for (const category in cityData.categoryCounts) {
       if (cityData.categoryCounts[category] > maxCount) {
         maxCount = cityData.categoryCounts[category];
         topCategory = category;
       }
     }
-    
+
     const maxRiskLevel = getRiskLevelFromScore(cityData.maxRiskScore);
     const averageRiskScore = cityData.total > 0 ? cityData.riskScoreTotal / cityData.total : 0;
 
@@ -232,7 +252,7 @@ export const getCityStats = (): Record<string, CityIntelligenceStats> => {
 export const getKPIs = (): { totalChecks7d: number; emergencyCount7d: number; topCategory: string; mostAffectedCity: string } => {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  
+
   let totalChecks7d = 0;
   let emergencyCount7d = 0;
   const categoryCounts: Record<string, number> = {};
@@ -244,7 +264,7 @@ export const getKPIs = (): { totalChecks7d: number; emergencyCount7d: number; to
       if (report.risk_level.toLowerCase() === "emergency") {
         emergencyCount7d++;
       }
-      
+
       categoryCounts[report.category] = (categoryCounts[report.category] || 0) + 1;
       cityCounts[report.city] = (cityCounts[report.city] || 0) + 1;
     }
@@ -273,4 +293,123 @@ export const getKPIs = (): { totalChecks7d: number; emergencyCount7d: number; to
 
 export const getAllReports = (): IntelligenceReport[] => {
   return store.filter(isReportEligible);
+};
+
+const cityLocationAliases: Record<string, string[]> = {
+  bangkok: ["bangkok", "krung thep", "bkk"],
+  phuket: ["phuket", "patong"],
+  pattaya: ["pattaya"],
+  "chiang mai": ["chiang mai", "nimman"],
+  "chiang rai": ["chiang rai"],
+  krabi: ["krabi"],
+  "koh samui": ["koh samui", "samui"],
+  "mae sot": ["mae sot", "border", "myanmar", "tak province"],
+};
+
+function locationMatches(reportCity: string, candidate: string): boolean {
+  const reportLower = reportCity.toLowerCase();
+  const candidateLower = candidate.toLowerCase();
+  if (reportLower === candidateLower) return true;
+  if (reportLower.includes(candidateLower) || candidateLower.includes(reportLower)) return true;
+
+  const aliases = cityLocationAliases[reportLower] || [];
+  return aliases.some((alias) => candidateLower.includes(alias));
+}
+
+export type SimilarIncidentCountOptions = {
+  category?: string;
+  cityOrLocation?: string;
+  windowDays: number;
+};
+
+export type SimilarIncidentCountResult = {
+  count: number;
+  location_label: string;
+};
+
+/**
+ * Count recent reports that look similar to the just-submitted situation.
+ * Used to render the "N similar incidents in the last X days near {location}"
+ * community-corroboration line in the result panel.
+ */
+export const getSimilarIncidentCount = (
+  opts: SimilarIncidentCountOptions,
+): SimilarIncidentCountResult => {
+  const windowDays = Math.max(1, opts.windowDays);
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - windowDays);
+
+  const requestedLocation = opts.cityOrLocation?.trim();
+  const requestedCategory = opts.category?.trim();
+
+  const matches = store.filter((report) => {
+    if (!isReportEligible(report)) return false;
+    if (report.timestamp < cutoff) return false;
+    if (requestedCategory && report.category !== requestedCategory) return false;
+    if (requestedLocation && !locationMatches(report.city, requestedLocation)) return false;
+    return true;
+  });
+
+  const fallbackLabel = requestedLocation || "your area";
+  let resolvedLabel = fallbackLabel;
+  if (requestedLocation) {
+    const cityHit = matches.find((report) => report.city.toLowerCase() === requestedLocation.toLowerCase());
+    if (cityHit) resolvedLabel = cityHit.city;
+    else if (matches.length > 0) resolvedLabel = `${matches[0].city} area`;
+  } else if (matches.length > 0) {
+    resolvedLabel = matches[0].city;
+  }
+
+  return {
+    count: matches.length,
+    location_label: resolvedLabel,
+  };
+};
+
+export function parseHotelReferrer(referrer: string | undefined | null): string | null {
+  if (!referrer) return null;
+  const match = referrer.match(/^hotel:(.+)$/i);
+  if (!match) return null;
+  return match[1].replace(/[-_]+/g, " ").trim() || null;
+}
+
+function recordHotelReferral(hotelName: string) {
+  const key = hotelName.toLowerCase();
+  const now = new Date().toISOString();
+  const existing = hotelReferrals[key] || { hotel: hotelName, count: 0, recentTimestamps: [] };
+  existing.count += 1;
+  existing.recentTimestamps = [now, ...existing.recentTimestamps].slice(0, 20);
+  existing.hotel = hotelName;
+  hotelReferrals[key] = existing;
+}
+
+/**
+ * Standalone referral recorder used by the client-side fallback POST endpoint while
+ * Agent B's analyze route does not yet thread the `referrer` field through to recordCheck.
+ * Safe to call independently of recordCheck.
+ */
+export const recordReferralOnly = (referrer: string | null | undefined): boolean => {
+  const hotelName = parseHotelReferrer(referrer ?? null);
+  if (!hotelName) return false;
+  recordHotelReferral(hotelName);
+  return true;
+};
+
+export type HotelReferralStats = {
+  hotel: string;
+  count: number;
+  countThisWeek: number;
+};
+
+export const getHotelReferralStats = (): HotelReferralStats[] => {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  return Object.values(hotelReferrals)
+    .map((entry) => ({
+      hotel: entry.hotel,
+      count: entry.count,
+      countThisWeek: entry.recentTimestamps.filter((iso) => new Date(iso) >= sevenDaysAgo).length,
+    }))
+    .sort((a, b) => b.countThisWeek - a.countThisWeek || b.count - a.count);
 };

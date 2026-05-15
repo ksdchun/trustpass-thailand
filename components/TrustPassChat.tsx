@@ -1,40 +1,59 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   AlertOctagon,
   AlertTriangle,
+  Award,
+  Building2,
+  Car,
   CheckCircle2,
   ChevronDown,
   Copy,
   Download,
   FileText,
+  Flame,
   Image as ImageIcon,
   LocateFixed,
   Loader2,
   MapPin,
   Maximize2,
+  MessageSquare,
   Paperclip,
   PhoneCall,
   RefreshCw,
+  Search,
   Shield,
   ShieldCheck,
   Sparkles,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   Upload,
-  X
+  Users,
+  X,
 } from "lucide-react";
 import type {
   EvidenceExtractResult,
-  GroundingSignal,
   Language,
   RiskCheckResult,
   RiskLevel,
   SituationAnalyzeRequest,
   SituationAnalyzeResponse,
-  UserLocation
+  UserLocation,
 } from "@/lib/types";
+import {
+  confidencePercentageFor,
+  type AnalyzeResponse,
+  type CommunityCorroboration,
+  type CompletedSituationWithExtras,
+  type DegradedResponse,
+  type GroundingSignal,
+  type TrustedOperatorSignal,
+} from "@/components/types";
 
 const cities = ["Bangkok", "Phuket", "Pattaya", "Chiang Mai"];
 const demoLocations: Array<{ id: string; label: string; location: UserLocation | null }> = [
@@ -56,43 +75,83 @@ const demoLocations: Array<{ id: string; label: string; location: UserLocation |
   }
 ];
 
-const sampleChips: Array<{ label: string; text: string }> = [
+type ScenarioChip = {
+  id: string;
+  label: string;
+  text: string;
+  description: string;
+  riskHint: RiskLevel;
+  city: string;
+  Icon: typeof Flame;
+  autoAttachImage?: string;
+  highlight?: boolean;
+};
+
+const HERO_CASTING_TEXT =
+  "A casting agent contacted me on WeChat offering a paid modeling job in Thailand. They said a driver will pick me up at the airport and take me to Mae Sot for the final interview. They told me not to mention this to my hotel and to keep my phone off during the drive.";
+
+const scenarioChips: ScenarioChip[] = [
   {
-    label: "Normal taxi",
-    text: "A taxi driver says he wants 50 baht to take me from Siam to Wat Pho. Is this normal?"
+    id: "wechat-casting",
+    label: "WeChat casting lure",
+    text: HERO_CASTING_TEXT,
+    description: "Hero scenario: WeChat recruiter, free airport pickup, Mae Sot interview, secrecy.",
+    riskHint: "Emergency",
+    city: "Bangkok",
+    Icon: Flame,
+    autoAttachImage: "/evidence/wechat_casting.png",
+    highlight: true,
   },
   {
-    label: "Suspicious taxi",
-    text: "A taxi driver says the meter is broken and wants 800 baht to take me from Siam to Wat Pho."
+    id: "taxi-meter-broken",
+    label: "Taxi: meter broken",
+    text: "A taxi driver says the meter is broken and wants 800 baht to take me from Siam to Wat Pho.",
+    description: "Quoted fare is several times the meter baseline for a short central route.",
+    riskHint: "High",
+    city: "Bangkok",
+    Icon: Car,
   },
   {
-    label: "Mall menu",
-    text: "This menu shows seafood pasta 320 baht and crab fried rice 450 baht. I am at Siam Paragon. Is this suspicious?"
+    id: "motorbike-passport",
+    label: "Motorbike: passport deposit",
+    text: "The motorbike rental shop in Patong wants to keep my original passport as a deposit for a 200 baht scooter.",
+    description: "Original passport held as rental leverage in a known tourist beach area.",
+    riskHint: "High",
+    city: "Phuket",
+    Icon: Building2,
   },
   {
-    label: "Street food high price",
-    text: "A street food stall menu shows pad thai 320 baht and fried rice 350 baht. Is this normal?"
+    id: "line-tour-payment",
+    label: "LINE tour: prepay personal",
+    text: "A LINE tour seller is asking for full payment today to a personal bank account and will not show a license number.",
+    description: "Advance prepayment to a personal account with no operator license.",
+    riskHint: "High",
+    city: "Phuket",
+    Icon: MessageSquare,
+  },
+];
+
+const SECONDARY_CHIPS: Array<{ id: string; label: string; text: string }> = [
+  {
+    id: "normal-taxi",
+    label: "Normal taxi quote",
+    text: "A taxi driver says he wants 50 baht to take me from Siam to Wat Pho. Is this normal?",
   },
   {
+    id: "jay-fai-menu",
     label: "Jay Fai menu",
-    text: "I am at Jay Fai. The menu shows crab omelette 1500 baht and drunken noodles 800 baht. Is this suspicious?"
+    text: "I am at Jay Fai. The menu shows crab omelette 1500 baht and drunken noodles 800 baht. Is this suspicious?",
   },
   {
-    label: "Tour booking",
-    text: "A LINE tour seller is asking for full payment today to a personal bank account and will not show a license number."
+    id: "street-food-high",
+    label: "Street food prices",
+    text: "A street food stall menu shows pad thai 320 baht and fried rice 350 baht. Is this normal?",
   },
   {
-    label: "Passport rental",
-    text: "The motorbike rental shop wants to keep my original passport as a deposit."
+    id: "qr-mismatch",
+    label: "QR account mismatch",
+    text: "Restaurant QR payment account name is a different personal name and they say scan to pay now.",
   },
-  {
-    label: "QR mismatch",
-    text: "Restaurant QR payment account name is a different personal name and they say scan to pay now."
-  },
-  {
-    label: "Casting offer",
-    text: "A WeChat recruiter offered me a paid casting gig with free airport pickup. The driver said we'll go to Mae Sot for the interview and asked me not to tell my hotel."
-  }
 ];
 
 const loadingStages = [
@@ -138,7 +197,29 @@ const quickTourSteps = [
 type PendingClarification = Extract<SituationAnalyzeResponse, { status: "needs_clarification" }>;
 type PendingMismatch = Extract<SituationAnalyzeResponse, { status: "evidence_mismatch" }>;
 type OutOfScopeSituation = Extract<SituationAnalyzeResponse, { status: "out_of_scope" }>;
-type CompletedSituation = Extract<SituationAnalyzeResponse, { status: "completed" }>;
+type CompletedSituation = CompletedSituationWithExtras;
+
+type RiskCheckResultWithExtras = Omit<RiskCheckResult, "grounding"> & {
+  grounding?: GroundingSignal[];
+  trusted_operator?: TrustedOperatorSignal;
+  community?: CommunityCorroboration;
+  request_id?: string;
+  latency_ms?: number;
+};
+
+type DegradedInfo = {
+  reason: DegradedResponse["reason"];
+  reason_text: string;
+};
+
+const SOURCE_LABELS: Record<RiskCheckResult["source"], string> = {
+  "azure-openai": "Azure OpenAI",
+  "local-demo": "TrustPass Grounding",
+};
+
+function describeSource(source: RiskCheckResult["source"]): string {
+  return SOURCE_LABELS[source] || "TrustPass Grounding";
+}
 type ReportEvidenceItem = {
   id: string;
   label: string;
@@ -247,9 +328,136 @@ const priorityStyles: Record<ActionPriority, { label: string; bg: string; text: 
   preventive: { label: "Preventive", bg: "#E5F1FB", text: "#0B5394" }
 };
 
+function normalizeCityParam(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  const match = cities.find((candidate) => candidate.toLowerCase() === normalized);
+  return match || null;
+}
+
+function normalizeReferrerParam(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 120) return trimmed.slice(0, 120);
+  return trimmed;
+}
+
+function prettifyHotelReferrer(referrer: string): string {
+  const match = referrer.match(/^hotel:(.+)$/i);
+  const raw = match ? match[1] : referrer;
+  return raw
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : ""))
+    .join(" ");
+}
+
+async function fetchImageAsDataUrl(url: string): Promise<{ dataUrl: string; blob: Blob } | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    const dataUrl = await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+    if (!dataUrl) return null;
+    return { dataUrl, blob };
+  } catch {
+    return null;
+  }
+}
+
+function inferCommunityLocation(result: RiskCheckResult, requestCity: string): string {
+  const text = `${result.category} ${result.suspicious_signals?.join(" ") ?? ""}`.toLowerCase();
+  if (text.includes("mae sot") || text.includes("border") || text.includes("myanmar") || text.includes("casting")) {
+    return "Mae Sot";
+  }
+  if (text.includes("patong")) return "Phuket";
+  return requestCity;
+}
+
+function inferOperatorLookupCity(result: RiskCheckResult, requestCity: string): string {
+  const inferred = inferCommunityLocation(result, requestCity);
+  return inferred === "Mae Sot" ? "Bangkok" : inferred;
+}
+
+async function hydrateResultExtras(
+  baseResult: RiskCheckResultWithExtras,
+  request: SituationAnalyzeRequest,
+  serverPayload: CompletedSituation,
+  degradedGrounding?: GroundingSignal[],
+): Promise<RiskCheckResultWithExtras> {
+  const result: RiskCheckResultWithExtras = { ...baseResult };
+  const serverWithExtras = serverPayload as CompletedSituation & {
+    trusted_operator?: TrustedOperatorSignal;
+    community?: CommunityCorroboration;
+    request_id?: string;
+    latency_ms?: number;
+  };
+  if (serverWithExtras.trusted_operator) result.trusted_operator = serverWithExtras.trusted_operator;
+  if (serverWithExtras.community) result.community = serverWithExtras.community;
+  if (serverWithExtras.request_id) result.request_id = serverWithExtras.request_id;
+  if (typeof serverWithExtras.latency_ms === "number") result.latency_ms = serverWithExtras.latency_ms;
+  if (degradedGrounding && degradedGrounding.length > 0) result.grounding = degradedGrounding;
+
+  const lookupCity = inferOperatorLookupCity(result, request.city);
+  const communityLocation = inferCommunityLocation(result, request.city);
+
+  const params = new URLSearchParams();
+  if (!result.trusted_operator) {
+    const candidateText = `${request.message} ${request.evidenceText ?? ""}`.trim();
+    if (candidateText) {
+      params.set("operator_text", candidateText.slice(0, 1024));
+      if (lookupCity) params.set("operator_city", lookupCity);
+    }
+  }
+  if (!result.community) {
+    params.set("similar_category", result.category);
+    if (communityLocation) params.set("similar_location", communityLocation);
+    params.set("similar_days", "7");
+  }
+
+  if ([...params.keys()].length === 0) return result;
+
+  try {
+    const lookupResponse = await fetch(`/api/intelligence?${params.toString()}`, { cache: "no-store" });
+    if (!lookupResponse.ok) return result;
+    const data = (await lookupResponse.json()) as {
+      operator?: TrustedOperatorSignal | null;
+      similar?: { count: number; location_label: string } | null;
+    };
+    if (!result.trusted_operator && data.operator) {
+      result.trusted_operator = data.operator;
+    }
+    if (!result.community && data.similar && data.similar.count > 0) {
+      result.community = {
+        similar_incident_count: data.similar.count,
+        window_days: 7,
+        location_label: data.similar.location_label,
+        link_to_dashboard: `/dashboard?pattern=${encodeURIComponent(result.category)}`,
+      };
+    }
+  } catch {
+    // Hydration is best-effort; ignore failures so the main result still renders.
+  }
+
+  return result;
+}
+
 export function TrustPassChat() {
+  const searchParams = useSearchParams();
+  const initialCityFromUrl = useMemo(() => normalizeCityParam(searchParams?.get("city")), [searchParams]);
+  const initialReferrerFromUrl = useMemo(() => normalizeReferrerParam(searchParams?.get("referrer")), [searchParams]);
+  const initialChipFromUrl = useMemo(() => searchParams?.get("chip") || null, [searchParams]);
+  const initialAutoplay = useMemo(() => searchParams?.get("autoplay") === "1", [searchParams]);
   const [message, setMessage] = useState("");
-  const [city, setCity] = useState("Bangkok");
+  const [city, setCity] = useState(initialCityFromUrl || "Bangkok");
   const language: Language = "English";
   const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [demoLocationId, setDemoLocationId] = useState("none");
@@ -262,7 +470,8 @@ export function TrustPassChat() {
   const [evidenceResult, setEvidenceResult] = useState<EvidenceExtractResult | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
-  const [result, setResult] = useState<RiskCheckResult | null>(null);
+  const [result, setResult] = useState<RiskCheckResultWithExtras | null>(null);
+  const [degradedInfo, setDegradedInfo] = useState<DegradedInfo | null>(null);
   const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(null);
   const [pendingMismatch, setPendingMismatch] = useState<PendingMismatch | null>(null);
   const [outOfScope, setOutOfScope] = useState<OutOfScopeSituation | null>(null);
@@ -273,6 +482,9 @@ export function TrustPassChat() {
   const [isDragging, setIsDragging] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
+  const [referrer, setReferrer] = useState<string | null>(initialReferrerFromUrl);
+  const [pendingEvidenceImage, setPendingEvidenceImage] = useState<{ dataUrl: string; name: string } | null>(null);
+  const [autoplayTriggeredId, setAutoplayTriggeredId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -318,6 +530,7 @@ export function TrustPassChat() {
     setPendingMismatch(null);
     setOutOfScope(null);
     setClarificationAnswer("");
+    setPendingEvidenceImage(null);
   }
 
   function onDrop(event: React.DragEvent) {
@@ -342,11 +555,13 @@ export function TrustPassChat() {
     setPendingMismatch(null);
     setOutOfScope(null);
     setClarificationAnswer("");
+    setDegradedInfo(null);
     if (result) {
       setResult(null);
       setExtractedText("");
       setEvidenceResult(null);
       setFile(null);
+      setPendingEvidenceImage(null);
     }
     setTimeout(() => textareaRef.current?.focus(), 0);
   }
@@ -356,6 +571,8 @@ export function TrustPassChat() {
     setFile(null);
     setExtractedText("");
     setEvidenceResult(null);
+    setPendingEvidenceImage(null);
+    setDegradedInfo(null);
     setResult(null);
     setPendingClarification(null);
     setPendingMismatch(null);
@@ -368,14 +585,22 @@ export function TrustPassChat() {
   }
 
   async function runSituationAnalysis(body: SituationAnalyzeRequest) {
+    const requestBody = referrer ? { ...body, referrer } : body;
+    if (pendingEvidenceImage) {
+      (requestBody as SituationAnalyzeRequest & { evidenceImage?: string }).evidenceImage =
+        pendingEvidenceImage.dataUrl;
+    }
     const response = await fetch("/api/situation/analyze", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(requestBody)
     });
 
-    const payload = (await response.json()) as SituationAnalyzeResponse | { error: string };
-    if ("error" in payload) throw new Error(payload.error);
+    const rawPayload = (await response.json()) as AnalyzeResponse | { error: string };
+    if ("error" in rawPayload && typeof (rawPayload as { error?: unknown }).error === "string") {
+      throw new Error((rawPayload as { error: string }).error);
+    }
+    const payload = rawPayload as AnalyzeResponse;
 
     if (payload.status === "needs_clarification") {
       setPendingRequest(body);
@@ -384,6 +609,7 @@ export function TrustPassChat() {
       setOutOfScope(null);
       setClarificationAnswer("");
       setResult(null);
+      setDegradedInfo(null);
       return;
     }
 
@@ -394,6 +620,7 @@ export function TrustPassChat() {
       setOutOfScope(null);
       setClarificationAnswer("");
       setResult(null);
+      setDegradedInfo(null);
       return;
     }
 
@@ -404,23 +631,40 @@ export function TrustPassChat() {
       setPendingMismatch(null);
       setClarificationAnswer("");
       setResult(null);
+      setDegradedInfo(null);
       return;
     }
 
-    // Minimal forward-compat shim for the new `degraded` status added by Agent B.
-    // Agent C will replace this with a proper degraded-state banner UI; for now
-    // we surface the embedded fallback_result so the user still gets a useful
-    // assessment even when Azure OpenAI is unavailable.
-    const completed = payload.status === "degraded" ? payload.fallback_result : payload;
-    const nextResult = situationToRiskResult(completed);
-    persistCase(nextResult, body.city);
-    setPendingClarification(null);
-    setPendingMismatch(null);
-    setOutOfScope(null);
-    setPendingRequest(null);
-    setClarificationAnswer("");
-    setResult(nextResult);
-    setResultKey((k) => k + 1);
+    if (payload.status === "degraded") {
+      const fallback = payload.fallback_result;
+      const enriched = situationToRiskResult(fallback);
+      enriched.source = "local-demo";
+      const hydrated = await hydrateResultExtras(enriched, body, fallback, payload.grounding);
+      persistCase(hydrated, body.city);
+      setPendingClarification(null);
+      setPendingMismatch(null);
+      setOutOfScope(null);
+      setPendingRequest(null);
+      setClarificationAnswer("");
+      setDegradedInfo({ reason: payload.reason, reason_text: payload.reason_text });
+      setResult(hydrated);
+      setResultKey((k) => k + 1);
+      return;
+    }
+
+    if (payload.status === "completed") {
+      const baseResult = situationToRiskResult(payload);
+      const hydrated = await hydrateResultExtras(baseResult, body, payload);
+      persistCase(hydrated, body.city);
+      setPendingClarification(null);
+      setPendingMismatch(null);
+      setOutOfScope(null);
+      setPendingRequest(null);
+      setClarificationAnswer("");
+      setDegradedInfo(null);
+      setResult(hydrated);
+      setResultKey((k) => k + 1);
+    }
   }
 
   async function answerClarification(answer: string) {
@@ -477,51 +721,151 @@ export function TrustPassChat() {
     }
   }
 
+  const runSubmission = useCallback(
+    async (overrides?: { messageOverride?: string; cityOverride?: string }) => {
+      const effectiveMessage = overrides?.messageOverride ?? message;
+      const effectiveCity = overrides?.cityOverride ?? city;
+
+      if ((!effectiveMessage.trim() && !file) || isChecking) return;
+
+      setIsChecking(true);
+      setErrorMessage(null);
+
+      try {
+        let extracted = "";
+        let extractData: EvidenceExtractResult | null = null;
+        if (file) {
+          const formData = new FormData();
+          formData.append("file", file);
+          const extractResponse = await fetch("/api/extract", { method: "POST", body: formData });
+          extractData = (await extractResponse.json()) as EvidenceExtractResult;
+          extracted = extractData.extractedText || "";
+          setEvidenceResult(extractData);
+          setExtractedText(extracted);
+        }
+
+        const body: SituationAnalyzeRequest = {
+          message: effectiveMessage,
+          city: effectiveCity,
+          language,
+          incidentDateIso: new Date(`${incidentDate}T12:00:00+07:00`).toISOString(),
+          evidenceText: extracted,
+          evidenceRelevance: extractData?.detectedFields
+            ? {
+                topic: extractData.detectedFields.evidence_topic,
+                relevance: extractData.detectedFields.relevance,
+                reason: extractData.detectedFields.relevance_reason,
+                usable_as_case_evidence: extractData.detectedFields.usable_as_case_evidence,
+              }
+            : undefined,
+          userLocation: userLocation ?? undefined,
+          attachmentsMetadata: file ? [{ name: file.name, type: file.type, size: file.size }] : [],
+        };
+
+        await runSituationAnalysis(body);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Could not check this situation. Please try again.");
+      } finally {
+        setIsChecking(false);
+      }
+    },
+    // We intentionally include the broad set of values this effect reads on each invocation.
+    // The function is recreated on each render which keeps the logic predictable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [city, file, incidentDate, isChecking, language, message, referrer, userLocation, pendingEvidenceImage],
+  );
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if ((!message.trim() && !file) || isChecking) return;
+    await runSubmission();
+  }
 
-    setIsChecking(true);
-    setErrorMessage(null);
+  const [pendingAutoplay, setPendingAutoplay] = useState<{ messageOverride: string; cityOverride: string } | null>(null);
 
-    try {
-      let extracted = "";
-      let extractData: EvidenceExtractResult | null = null;
-      if (file) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const extractResponse = await fetch("/api/extract", { method: "POST", body: formData });
-        extractData = (await extractResponse.json()) as EvidenceExtractResult;
-        extracted = extractData.extractedText || "";
-        setEvidenceResult(extractData);
-        setExtractedText(extracted);
+  const handleSelectScenarioChip = useCallback(
+    async (chip: ScenarioChip, options?: { autoplay?: boolean }) => {
+      if (isChecking) return;
+
+      setMessage(chip.text);
+      setCity(chip.city);
+      setErrorMessage(null);
+      setPendingClarification(null);
+      setPendingMismatch(null);
+      setOutOfScope(null);
+      setClarificationAnswer("");
+      setDegradedInfo(null);
+      setResult(null);
+      setExtractedText("");
+      setEvidenceResult(null);
+      setFile(null);
+      setPendingEvidenceImage(null);
+      setIncidentDate(new Date().toISOString().slice(0, 10));
+
+      if (chip.autoAttachImage) {
+        const fetched = await fetchImageAsDataUrl(chip.autoAttachImage);
+        if (fetched) {
+          setPendingEvidenceImage({ dataUrl: fetched.dataUrl, name: chip.autoAttachImage.split("/").pop() || "evidence.png" });
+          const fileFromBlob = new File([fetched.blob], chip.autoAttachImage.split("/").pop() || "evidence.png", {
+            type: fetched.blob.type || "image/png",
+          });
+          setFile(fileFromBlob);
+        }
       }
 
-      const body: SituationAnalyzeRequest = {
-        message,
-        city,
-        language,
-        incidentDateIso: new Date(`${incidentDate}T12:00:00+07:00`).toISOString(),
-        evidenceText: extracted,
-        evidenceRelevance: extractData?.detectedFields
-          ? {
-              topic: extractData.detectedFields.evidence_topic,
-              relevance: extractData.detectedFields.relevance,
-              reason: extractData.detectedFields.relevance_reason,
-              usable_as_case_evidence: extractData.detectedFields.usable_as_case_evidence
-            }
-          : undefined,
-        userLocation: userLocation ?? undefined,
-        attachmentsMetadata: file ? [{ name: file.name, type: file.type, size: file.size }] : []
-      };
+      if (options?.autoplay) {
+        // Defer to the effect below so React picks up file/state changes before submission fires.
+        setPendingAutoplay({ messageOverride: chip.text, cityOverride: chip.city });
+      } else {
+        setTimeout(() => textareaRef.current?.focus(), 0);
+      }
+    },
+    [isChecking],
+  );
 
-      await runSituationAnalysis(body);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not check this situation. Please try again.");
-    } finally {
-      setIsChecking(false);
+  useEffect(() => {
+    if (!pendingAutoplay) return;
+    if (isChecking) return;
+    const id = window.setTimeout(() => {
+      void runSubmission({
+        messageOverride: pendingAutoplay.messageOverride,
+        cityOverride: pendingAutoplay.cityOverride,
+      });
+      setPendingAutoplay(null);
+    }, 350);
+    return () => window.clearTimeout(id);
+  }, [isChecking, pendingAutoplay, runSubmission]);
+
+  // Client-side fallback for hotel referral attribution. Once Agent B threads the `referrer`
+  // field through `/api/situation/analyze` into `recordCheck`, this best-effort POST becomes
+  // redundant (and harmless — the server simply double-counts within the same in-memory map).
+  useEffect(() => {
+    if (!result || !referrer) return;
+    if (!isDashboardEligible(result)) return;
+    void fetch("/api/intelligence", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "record_referral", referrer }),
+    }).catch(() => {
+      // Best-effort. Failures here should not interrupt the result render.
+    });
+  }, [referrer, result]);
+
+  useEffect(() => {
+    if (!initialChipFromUrl) return;
+    if (autoplayTriggeredId === initialChipFromUrl) return;
+
+    const matchedScenario = scenarioChips.find((chip) => chip.id === initialChipFromUrl);
+    const matchedSecondary = SECONDARY_CHIPS.find((chip) => chip.id === initialChipFromUrl);
+
+    if (matchedScenario) {
+      setAutoplayTriggeredId(initialChipFromUrl);
+      void handleSelectScenarioChip(matchedScenario, { autoplay: initialAutoplay });
+    } else if (matchedSecondary) {
+      setAutoplayTriggeredId(initialChipFromUrl);
+      setMessage(matchedSecondary.text);
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
-  }
+  }, [autoplayTriggeredId, handleSelectScenarioChip, initialAutoplay, initialChipFromUrl]);
 
   function handleUseLocation() {
     setLocationError("");
@@ -599,6 +943,7 @@ export function TrustPassChat() {
 
       <div className="grid gap-6 lg:grid-cols-[380px_1fr] lg:items-start">
         <FormPanel
+          referrer={referrer}
           message={message}
           setMessage={setMessage}
           textareaRef={textareaRef}
@@ -641,9 +986,9 @@ export function TrustPassChat() {
           ) : outOfScope ? (
             <OutOfScopePanel response={outOfScope} onPickSample={handlePickSample} />
           ) : result ? (
-            <ResultPanel key={resultKey} result={result} city={city} onNewCheck={handleNewCheck} />
+            <ResultPanel key={resultKey} result={result} city={city} onNewCheck={handleNewCheck} degradedInfo={degradedInfo} />
           ) : (
-            <EmptyState onPickSample={handlePickSample} />
+            <EmptyState onSelectScenario={(chip) => handleSelectScenarioChip(chip)} onPickSample={handlePickSample} />
           )}
         </div>
       </div>
@@ -765,14 +1110,18 @@ type FormPanelProps = {
   onDrop: (e: React.DragEvent) => void;
   onSubmit: (e: FormEvent) => void;
   isChecking: boolean;
+  referrer: string | null;
 };
 
 function FormPanel(props: FormPanelProps) {
   const {
     message, setMessage, textareaRef,
     file, previewUrl, extractedText, evidenceResult, chooseFile, fileInputRef, dropZoneRef,
-    isDragging, setIsDragging, onDrop, onSubmit, isChecking
+    isDragging, setIsDragging, onDrop, onSubmit, isChecking,
+    referrer,
   } = props;
+
+  const hotelName = referrer ? prettifyHotelReferrer(referrer) : null;
 
   return (
     <form onSubmit={onSubmit} className="lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100vh-6rem)] lg:flex-col lg:self-start">
@@ -782,9 +1131,21 @@ function FormPanel(props: FormPanelProps) {
         </span>
         <div>
           <p className="text-base font-semibold leading-tight text-[#242424]">TrustPass Thailand</p>
-          <p className="text-xs font-medium text-[#616161]">Tourism trust assistant</p>
+          <p className="text-xs font-medium text-[#616161]">Tourism trust evidence pipeline</p>
         </div>
       </div>
+
+      {hotelName && (
+        <div
+          data-tour-id="hotel-referrer"
+          className="mb-4 flex shrink-0 items-start gap-2 rounded-md border border-[#0078D4]/25 bg-[#EFF6FC] px-3 py-2 text-[11px] leading-relaxed text-[#0B5394]"
+        >
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5" />
+          <p>
+            Started from <span className="font-semibold">{hotelName}</span>. This check will be attributed to your hotel partner so concierge teams can see aggregate patterns.
+          </p>
+        </div>
+      )}
 
       <div className="min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
         <Card title="1. Describe Situation" dataTourId="describe-situation">
@@ -925,30 +1286,156 @@ function Field({ label, icon, children }: { label: string; icon: ReactNode; chil
   );
 }
 
-function EmptyState({ onPickSample }: { onPickSample: (text: string) => void }) {
+function EmptyState({
+  onPickSample,
+  onSelectScenario,
+}: {
+  onPickSample: (text: string) => void;
+  onSelectScenario: (chip: ScenarioChip) => void;
+}) {
+  const heroChip = scenarioChips.find((chip) => chip.highlight) || scenarioChips[0];
+  const otherScenarioChips = scenarioChips.filter((chip) => chip !== heroChip);
+
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center rounded-lg border border-dashed border-[#E1E1E1] bg-white px-6 py-14 text-center shadow-card">
-      <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFF6FC]">
-        <Shield className="h-8 w-8 text-[#0078D4]" />
+    <div className="rounded-lg border border-dashed border-[#E1E1E1] bg-white px-6 py-10 shadow-card sm:px-10">
+      <div className="flex flex-col items-center text-center">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFF6FC]">
+          <Shield className="h-8 w-8 text-[#0078D4]" />
+        </div>
+        <h2 className="text-lg font-semibold text-[#242424]">Ready to analyse a tourist risk</h2>
+        <p className="mt-2 max-w-md text-sm leading-relaxed text-[#616161]">
+          Describe what is happening on the left, or one-tap a real Thailand scenario below to see the evidence pipeline at work.
+        </p>
       </div>
-      <h2 className="text-lg font-semibold text-[#242424]">Ready to check</h2>
-      <p className="mt-2 max-w-sm text-sm leading-relaxed text-[#616161]">
-        Submit a situation on the left to receive a structured risk assessment in seconds.
-      </p>
-      <div className="mt-6 flex flex-wrap justify-center gap-2">
-        {sampleChips.map((chip) => (
-          <button
-            key={chip.label}
-            type="button"
-            onClick={() => onPickSample(chip.text)}
-            className="rounded-xl border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-medium text-[#242424] transition hover:border-[#0078D4] hover:bg-[#F5FAFD] hover:text-[#0078D4]"
-          >
-            <Sparkles className="mr-1.5 inline-block h-3 w-3 -translate-y-px text-[#0078D4]" />
-            {chip.label}
-          </button>
-        ))}
-      </div>
+
+      {heroChip && <HeroScenarioChip chip={heroChip} onSelect={() => onSelectScenario(heroChip)} />}
+
+      {otherScenarioChips.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-wider text-[#9A9A9A]">
+            Secondary scenarios
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {otherScenarioChips.map((chip) => (
+              <ScenarioChipButton key={chip.id} chip={chip} onSelect={() => onSelectScenario(chip)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {SECONDARY_CHIPS.length > 0 && (
+        <div className="mt-7 border-t border-dashed border-[#E1E1E1] pt-5">
+          <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-[#9A9A9A]">
+            Try more situations
+          </p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {SECONDARY_CHIPS.map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => onPickSample(chip.text)}
+                className="rounded-xl border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-medium text-[#242424] transition hover:border-[#0078D4] hover:bg-[#F5FAFD] hover:text-[#0078D4]"
+              >
+                <Sparkles className="mr-1.5 inline-block h-3 w-3 -translate-y-px text-[#0078D4]" />
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function HeroScenarioChip({ chip, onSelect }: { chip: ScenarioChip; onSelect: () => void }) {
+  const theme = riskTheme[chip.riskHint];
+  const Icon = chip.Icon;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      data-tour-id="hero-scenario-chip"
+      className="group mt-6 flex w-full items-stretch overflow-hidden rounded-2xl border border-[#A4262C]/30 bg-gradient-to-br from-[#FBE9EA] via-white to-[#FFF4CE] text-left shadow-card transition hover:shadow-elevated"
+    >
+      <span
+        className="flex w-2 shrink-0"
+        style={{ backgroundColor: theme.hex }}
+        aria-hidden
+      />
+      <div className="grid w-full gap-4 px-5 py-5 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+        <span
+          className="flex h-12 w-12 items-center justify-center rounded-xl text-white"
+          style={{ backgroundColor: theme.hex }}
+        >
+          <Icon className="h-6 w-6" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
+              style={{ backgroundColor: theme.hex }}
+            >
+              <Flame className="h-3 w-3" />
+              Hero scenario
+            </span>
+            <span className="inline-flex rounded-full border border-[#A4262C]/30 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#7A1F25]">
+              Risk hint: {theme.label}
+            </span>
+            {chip.autoAttachImage && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[#0078D4]/30 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#0B5394]">
+                <ImageIcon className="h-3 w-3" />
+                Auto-attach evidence
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-sm font-semibold text-[#242424]">{chip.label}</p>
+          <p className="mt-1 text-xs leading-relaxed text-[#616161]">{chip.description}</p>
+        </div>
+        <span
+          className="inline-flex items-center justify-center gap-1.5 self-center rounded-md bg-[#A4262C] px-4 py-2 text-xs font-semibold text-white transition group-hover:bg-[#7A1F25]"
+        >
+          Run scenario
+          <Sparkles className="h-3.5 w-3.5" />
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function ScenarioChipButton({ chip, onSelect }: { chip: ScenarioChip; onSelect: () => void }) {
+  const theme = riskTheme[chip.riskHint];
+  const Icon = chip.Icon;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="group flex h-full flex-col items-stretch gap-2 rounded-xl border border-[#E1E1E1] bg-white px-3 py-3 text-left transition hover:border-[#0078D4] hover:bg-[#F5FAFD]"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-md text-white"
+          style={{ backgroundColor: theme.hex }}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        <span
+          className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+          style={{
+            borderColor: theme.ring,
+            color: theme.text,
+            backgroundColor: theme.softBg,
+          }}
+        >
+          {theme.label}
+        </span>
+      </div>
+      <p className="text-sm font-semibold text-[#242424]">{chip.label}</p>
+      <p className="text-[11px] leading-relaxed text-[#616161]">{chip.description}</p>
+      <span className="mt-auto inline-flex items-center justify-end gap-1 text-[11px] font-semibold text-[#0078D4]">
+        Run scenario
+        <Sparkles className="h-3 w-3" />
+      </span>
+    </button>
   );
 }
 
@@ -1195,17 +1682,34 @@ function ResultSkeleton({ stage }: { stage: string }) {
   );
 }
 
-function ResultPanel({ result, city, onNewCheck }: { result: RiskCheckResult; city: string; onNewCheck: () => void }) {
+function ResultPanel({
+  result,
+  city,
+  onNewCheck,
+  degradedInfo,
+}: {
+  result: RiskCheckResultWithExtras;
+  city: string;
+  onNewCheck: () => void;
+  degradedInfo: DegradedInfo | null;
+}) {
   const theme = riskTheme[result.risk_level];
-  const score = riskScoreFor(result);
+  const score = riskScoreFor(result as RiskCheckResult);
   const [showLargePhrase, setShowLargePhrase] = useState(false);
   const [reportEvidence, setReportEvidence] = useState<ReportEvidenceItem[]>(() => createReportEvidence(result.evidence_to_save));
+  const isDegraded = Boolean(degradedInfo);
+  const sourceAttribute = isDegraded ? "local" : result.source === "azure-openai" ? "azure" : "local";
 
   return (
-    <article className="animate-fadein overflow-hidden rounded-lg border border-[#E1E1E1] bg-white shadow-card">
+    <article
+      data-status={isDegraded ? "degraded" : "ok"}
+      data-source={sourceAttribute}
+      className="animate-fadein overflow-hidden rounded-lg border border-[#E1E1E1] bg-white shadow-card"
+    >
+      {isDegraded && degradedInfo && <DegradedBanner info={degradedInfo} />}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E1E1E1] bg-white px-5 py-3 sm:px-7">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#616161]">Assessment complete</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#616161]">Risk assessment complete</p>
           <p className="mt-0.5 text-sm font-semibold text-[#242424]">{result.category}</p>
         </div>
         <button
@@ -1217,18 +1721,24 @@ function ResultPanel({ result, city, onNewCheck }: { result: RiskCheckResult; ci
           New check
         </button>
       </div>
-      <HeroSection result={result} theme={theme} score={score} city={city} />
+      <HeroSection result={result as RiskCheckResult} theme={theme} score={score} city={city} />
 
       <div className="space-y-7 px-6 py-6 sm:px-7">
         <Section title="Why this is risky">
           <p className="text-sm leading-relaxed text-[#424242]">{result.why_it_matters}</p>
         </Section>
 
+        {result.trusted_operator && <TrustedOperatorCard operator={result.trusted_operator} />}
+
         <SignalsSection signals={result.suspicious_signals} theme={theme} />
 
-        <GroundingDetailsSection result={result} />
+        {result.community && <CommunityCorroborationLine community={result.community} category={result.category} />}
 
-        <CaseSpecificCardsSection result={result} />
+        <GroundingPanel signals={(result.grounding as GroundingSignal[] | undefined) || []} />
+
+        <GroundingDetailsSection result={result as RiskCheckResult} />
+
+        <CaseSpecificCardsSection result={result as RiskCheckResult} />
 
         <ActionsSection actions={result.safe_next_steps} />
 
@@ -1239,16 +1749,311 @@ function ResultPanel({ result, city, onNewCheck }: { result: RiskCheckResult; ci
         <ContactSection contactRecommendation={result.contact_recommendation} riskLevel={result.risk_level} />
 
         <div data-tour-id="incident-report">
-          <IncidentReportSection result={result} category={result.category} city={city} evidence={reportEvidence} />
+          <IncidentReportSection result={result as RiskCheckResult} category={result.category} city={city} evidence={reportEvidence} />
         </div>
+
+        <FeedbackWidget requestId={result.request_id ?? null} />
       </div>
 
-      <FooterDisclaimer source={result.source} />
+      <FooterDisclaimer source={result.source} degraded={isDegraded} />
 
       {showLargePhrase && (
         <LargePhraseModal phrase={result.thai_phrase} onClose={() => setShowLargePhrase(false)} />
       )}
     </article>
+  );
+}
+
+function DegradedBanner({ info }: { info: DegradedInfo }) {
+  return (
+    <div className="flex items-start gap-3 border-b border-[#F0C36D] bg-[#FFF4CE] px-5 py-3 text-sm text-[#7A5A00] sm:px-7">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      <div className="min-w-0">
+        <p className="font-semibold">Live AI service unavailable</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-[#7A5A00]">
+          Showing rule-based assessment instead. {info.reason_text}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TrustedOperatorCard({ operator }: { operator: TrustedOperatorSignal }) {
+  const styles = (() => {
+    if (operator.status === "verified") {
+      return {
+        accent: "border-[#107C10]/40 bg-[#F1FAF1]",
+        kicker: "text-[#107C10]",
+        iconBg: "bg-[#107C10] text-white",
+        Icon: ShieldCheck,
+        title: `Verified Trusted Thailand operator`,
+      };
+    }
+    if (operator.status === "no_license") {
+      return {
+        accent: "border-[#FFB900]/40 bg-[#FFF4CE]",
+        kicker: "text-[#7A5A00]",
+        iconBg: "bg-[#FFB900] text-white",
+        Icon: AlertTriangle,
+        title: `No TAT license found for "${operator.operator_name}"`,
+      };
+    }
+    return {
+      accent: "border-[#E1E1E1] bg-[#FAFAFA]",
+      kicker: "text-[#616161]",
+      iconBg: "bg-[#A19F9D] text-white",
+      Icon: Search,
+      title: `"${operator.operator_name}" not in our directory`,
+    };
+  })();
+
+  const subtitle = (() => {
+    if (operator.status === "verified") {
+      const parts: string[] = [];
+      if (operator.tat_license) parts.push(operator.tat_license);
+      if (operator.operator_type) parts.push(operator.operator_type);
+      if (operator.city) parts.push(operator.city);
+      return parts.join(" \u00b7 ");
+    }
+    if (operator.status === "no_license") {
+      return "Verify before paying. Ask for a TAT license number, written cancellation terms, and a receipt.";
+    }
+    return "Ask your hotel desk or hotel concierge to verify before paying.";
+  })();
+
+  const StatusIcon = styles.Icon;
+
+  return (
+    <section
+      data-tour-id="trusted-operator"
+      data-operator-status={operator.status}
+      className={`rounded-lg border ${styles.accent} px-4 py-4`}
+    >
+      <div className="flex items-start gap-3">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${styles.iconBg}`}>
+          <StatusIcon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={`text-[11px] font-semibold uppercase tracking-wider ${styles.kicker}`}>
+            Trusted operator directory
+          </p>
+          <h3 className="mt-1 text-base font-semibold leading-snug text-[#242424]">{styles.title}</h3>
+          <p className="mt-1 text-xs leading-relaxed text-[#424242]">
+            {operator.status === "verified" && operator.operator_name && <span className="font-semibold text-[#107C10]">{operator.operator_name}</span>}
+            {operator.status === "verified" && subtitle && <> &middot; {subtitle}</>}
+            {operator.status !== "verified" && subtitle}
+          </p>
+          {operator.notes && (
+            <p className="mt-2 rounded-md border border-white/40 bg-white/80 px-2.5 py-1.5 text-[11px] leading-relaxed text-[#616161]">
+              {operator.notes}
+            </p>
+          )}
+          <p className="mt-2 text-[10px] uppercase tracking-wider text-[#9A9A9A]">
+            Source: trusted operator demo directory &middot; <code className="rounded bg-white/80 px-1 py-0.5 text-[10px] text-[#616161]">data/verified_operators.demo.json</code>
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CommunityCorroborationLine({
+  community,
+  category,
+}: {
+  community: CommunityCorroboration;
+  category: string;
+}) {
+  const href = community.link_to_dashboard ?? `/dashboard?pattern=${encodeURIComponent(category)}`;
+  return (
+    <Section title="Community signal">
+      <Link
+        href={href}
+        className="flex items-start gap-3 rounded-md border border-[#0078D4]/25 bg-[#EFF6FC] px-4 py-3 text-sm transition hover:border-[#0078D4]/60 hover:bg-[#E1F0FB]"
+      >
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0078D4] text-white">
+          <Users className="h-3.5 w-3.5" />
+        </span>
+        <div>
+          <p className="font-semibold text-[#0B5394]">
+            {community.similar_incident_count} similar {community.similar_incident_count === 1 ? "incident" : "incidents"}{" "}
+            reported near {community.location_label} in the last {community.window_days} days
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[#0B5394]/80">
+            Aggregated from eligible Caution, High, and Emergency cases. Tap to open this pattern in the dashboard.
+          </p>
+        </div>
+      </Link>
+    </Section>
+  );
+}
+
+function GroundingPanel({ signals }: { signals: GroundingSignal[] }) {
+  if (!signals || signals.length === 0) return null;
+
+  return (
+    <Section title="Grounding signals" count={signals.length}>
+      <ul className="grid gap-2">
+        {signals.map((signal, index) => (
+          <GroundingSignalRow key={`${signal.tool}-${index}`} signal={signal} />
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+function GroundingSignalRow({ signal }: { signal: GroundingSignal }) {
+  const confidencePct = confidencePercentageFor(signal);
+  const chip = (() => {
+    if (confidencePct >= 90) return { bg: "bg-[#E7F6E7]", text: "text-[#107C10]", border: "border-[#CFE8D1]" };
+    if (confidencePct >= 70) return { bg: "bg-[#FFF4CE]", text: "text-[#7A5A00]", border: "border-[#F7E5A1]" };
+    return { bg: "bg-[#F3F2F1]", text: "text-[#616161]", border: "border-[#E1E1E1]" };
+  })();
+  const sourceFile = signal.source_file;
+  const sourceLabel = signal.source_label ?? formatToolLabel(signal.tool);
+  const isInternal = !sourceFile || sourceFile === "internal";
+
+  return (
+    <li className="rounded-md border border-[#E1E1E1] bg-white px-3 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[#242424]">{signal.title}</p>
+          <p className="mt-1 text-xs leading-relaxed text-[#424242]">{signal.summary}</p>
+        </div>
+        <span
+          data-confidence={signal.confidence}
+          className={`inline-flex shrink-0 items-center gap-1 rounded-full border ${chip.border} ${chip.bg} ${chip.text} px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide`}
+        >
+          <Award className="h-3 w-3" />
+          {confidencePct}% confidence
+        </span>
+      </div>
+      <p className="mt-2 text-[10px] uppercase tracking-wider text-[#9A9A9A]">
+        Source: <span className="text-[#616161] normal-case tracking-normal">{sourceLabel}</span>
+        {" \u00b7 "}
+        {isInternal ? (
+          <span className="normal-case tracking-normal text-[#9A9A9A]">internal</span>
+        ) : sourceFile && sourceFile.startsWith("data/") ? (
+          <code className="rounded bg-[#F3F2F1] px-1 py-0.5 text-[10px] text-[#616161]">{sourceFile}</code>
+        ) : (
+          <span className="normal-case tracking-normal text-[#616161]">{sourceFile}</span>
+        )}
+      </p>
+    </li>
+  );
+}
+
+function formatToolLabel(tool: string): string {
+  return tool
+    .split("_")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : ""))
+    .join(" ");
+}
+
+function FeedbackWidget({ requestId }: { requestId: string | null }) {
+  const [submitted, setSubmitted] = useState(false);
+  const [pendingRating, setPendingRating] = useState<"up" | "down" | null>(null);
+  const [reason, setReason] = useState("");
+  const [sending, setSending] = useState(false);
+
+  async function submit(rating: "up" | "down", reasonValue?: string) {
+    setSending(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          request_id: requestId,
+          rating,
+          reason: reasonValue?.trim() || undefined,
+        }),
+      });
+    } catch {
+      // Feedback is best-effort; failing silently keeps the demo smooth.
+    }
+    setSending(false);
+    setSubmitted(true);
+  }
+
+  function handleUp() {
+    if (sending || submitted) return;
+    void submit("up");
+  }
+
+  function openDown() {
+    if (sending || submitted) return;
+    setPendingRating("down");
+  }
+
+  function sendDown() {
+    void submit("down", reason);
+  }
+
+  if (submitted) {
+    return (
+      <Section title="Was this assessment useful?">
+        <p className="rounded-md border border-[#CFE8D1] bg-[#F1FAF1] px-3 py-2.5 text-sm font-medium text-[#107C10]">
+          Thanks for the feedback &mdash; it helps us tune Thailand-specific risk detection.
+        </p>
+      </Section>
+    );
+  }
+
+  if (pendingRating === "down") {
+    return (
+      <Section title="What was off about this assessment?">
+        <textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Optional. Tell us what was wrong, missing, or confusing."
+          rows={3}
+          className="w-full resize-y rounded-md border border-[#E1E1E1] bg-white px-3 py-2 text-sm text-[#242424] focus:border-[#0078D4] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/30"
+        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={sendDown}
+            disabled={sending}
+            className="inline-flex items-center gap-1.5 rounded-md bg-[#0078D4] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#106EBE] disabled:cursor-not-allowed disabled:bg-[#BDBDBD]"
+          >
+            <ThumbsDown className="h-3.5 w-3.5" />
+            Send feedback
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingRating(null)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#242424] transition hover:border-[#0078D4] hover:text-[#0078D4]"
+          >
+            Cancel
+          </button>
+        </div>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title="Was this assessment useful?">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={handleUp}
+          disabled={sending}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#242424] transition hover:border-[#107C10] hover:bg-[#F1FAF1] hover:text-[#107C10]"
+        >
+          <ThumbsUp className="h-3.5 w-3.5" />
+          Useful
+        </button>
+        <button
+          type="button"
+          onClick={openDown}
+          disabled={sending}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[#E1E1E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#242424] transition hover:border-[#D83B01] hover:bg-[#FBEAE0] hover:text-[#D83B01]"
+        >
+          <ThumbsDown className="h-3.5 w-3.5" />
+          Needs work
+        </button>
+      </div>
+    </Section>
   );
 }
 
@@ -3223,7 +4028,8 @@ function KeyFact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FooterDisclaimer({ source }: { source: RiskCheckResult["source"] }) {
+function FooterDisclaimer({ source, degraded }: { source: RiskCheckResult["source"]; degraded?: boolean }) {
+  const sourceLabel = degraded ? "TrustPass Grounding (fallback)" : describeSource(source);
   return (
     <footer className="border-t border-[#E1E1E1] bg-[#FAFAFA] px-6 py-4 sm:px-7">
       <p className="text-[11px] leading-relaxed text-[#616161]">
@@ -3233,14 +4039,19 @@ function FooterDisclaimer({ source }: { source: RiskCheckResult["source"] }) {
         <CheckCircle2 className="h-3 w-3" />
         Eligible Caution-or-higher signals can contribute to regional intelligence
         <span className="ml-2 rounded-xl border border-[#E1E1E1] bg-white px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#616161]">
-          {source === "azure-openai" ? "Azure OpenAI" : "TrustPass Grounding"}
+          {sourceLabel}
         </span>
       </p>
     </footer>
   );
 }
 
-function situationToRiskResult(response: CompletedSituation): RiskCheckResult {
+function normalizeSource(value: unknown): RiskCheckResult["source"] {
+  if (value === "azure-openai" || value === "local-demo") return value;
+  return "local-demo";
+}
+
+function situationToRiskResult(response: CompletedSituation): RiskCheckResultWithExtras {
   return {
     risk_level: response.risk_level,
     category: response.category,
@@ -3251,12 +4062,16 @@ function situationToRiskResult(response: CompletedSituation): RiskCheckResult {
     evidence_to_save: response.evidence_to_save,
     contact_recommendation: response.contact_recommendation,
     incident_report_summary: response.report,
-    grounding: response.grounding,
-    source: response.source
+    grounding: response.grounding as GroundingSignal[] | undefined,
+    source: normalizeSource(response.source),
+    trusted_operator: response.trusted_operator,
+    community: response.community,
+    request_id: response.request_id,
+    latency_ms: response.latency_ms,
   };
 }
 
-function persistCase(result: RiskCheckResult, city: string) {
+function persistCase(result: RiskCheckResultWithExtras, city: string) {
   if (typeof window === "undefined") return;
   if (!isDashboardEligible(result)) return;
 
@@ -3267,8 +4082,16 @@ function persistCase(result: RiskCheckResult, city: string) {
     city,
     category: result.category,
     risk_level: result.risk_level,
-    risk_score: riskScoreFor(result),
-    signal_count: result.suspicious_signals?.length || 0
+    risk_score: riskScoreFor(result as RiskCheckResult),
+    signal_count: result.suspicious_signals?.length || 0,
+    suspicious_signals: result.suspicious_signals,
+    safe_next_steps: result.safe_next_steps,
+    thai_phrase: result.thai_phrase,
+    contact_recommendation: result.contact_recommendation,
+    why_it_matters: result.why_it_matters,
+    incident_report_summary: result.incident_report_summary,
+    trusted_operator: result.trusted_operator,
+    community: result.community,
   };
 
   const sessionExisting = JSON.parse(window.sessionStorage.getItem("trustpass-session-cases") || "[]");
@@ -3286,7 +4109,7 @@ function persistCase(result: RiskCheckResult, city: string) {
   window.localStorage.setItem("trustpass-cases", JSON.stringify(existing.slice(0, 20)));
 }
 
-function isDashboardEligible(result: RiskCheckResult) {
+function isDashboardEligible(result: RiskCheckResultWithExtras) {
   if (result.risk_level === "Low") return false;
   if (result.category === "No strong scam pattern detected") return false;
   if (result.category === "Outside TrustPass scope") return false;

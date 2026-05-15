@@ -1,26 +1,137 @@
 [
   {
     "name": "Sawasdee River Tour",
-    "type": "tour",
+    "operator_type": "tour",
     "city": "Bangkok",
-    "status": "demo_verified",
-    "license": "TAT-DEMO-1001",
-    "phone": "+66 2 000 1001"
+    "status": "verified",
+    "tat_license": "TAT 11/01045",
+    "phone": "+66 2 000 1001",
+    "notes": "Chao Phraya day tour. TAT-licensed since 2019. Verified phone, license, and bank account in directory."
+  },
+  {
+    "name": "Issaya Siamese Club",
+    "operator_type": "restaurant",
+    "city": "Bangkok",
+    "status": "verified",
+    "tat_license": "REST 11/00231",
+    "phone": "+66 2 672 9040",
+    "notes": "Independent registered restaurant in directory. Use marked taxis or hotel transport for return trips."
+  },
+  {
+    "name": "Bangkok Airport Rail Link",
+    "operator_type": "transport",
+    "city": "Bangkok",
+    "status": "verified",
+    "tat_license": "TRANS 11/00012",
+    "phone": "+66 2 308 5600",
+    "notes": "Official airport rail. Use ticket machines or counter; ignore private touts at the platform."
+  },
+  {
+    "name": "Bangkok City Wheels Rental",
+    "operator_type": "rental",
+    "city": "Bangkok",
+    "status": "verified",
+    "tat_license": "RENT 11/00318",
+    "phone": "+66 2 555 3210",
+    "notes": "Card or refundable cash deposit. Will not require original passport. Insurance included."
   },
   {
     "name": "Phuket Blue Island Trips",
-    "type": "tour",
+    "operator_type": "tour",
     "city": "Phuket",
-    "status": "demo_verified",
-    "license": "TAT-DEMO-2001",
-    "phone": "+66 76 000 200"
+    "status": "verified",
+    "tat_license": "TAT 33/00204",
+    "phone": "+66 76 000 200",
+    "notes": "Phi Phi day tour. TAT-licensed boat operator. Refunds processed through official channel."
+  },
+  {
+    "name": "Phuket Sunrise Yoga & Wellness",
+    "operator_type": "wellness",
+    "city": "Phuket",
+    "status": "verified",
+    "tat_license": "WELL 33/00111",
+    "phone": "+66 76 555 220",
+    "notes": "Licensed wellness studio. Patong location. Verified card payments and printed receipts."
+  },
+  {
+    "name": "Patong Reef Scooter Hire",
+    "operator_type": "rental",
+    "city": "Phuket",
+    "status": "verified",
+    "tat_license": "RENT 33/00407",
+    "phone": "+66 76 222 311",
+    "notes": "Refundable cash deposit only. Photo of passport accepted in place of original."
   },
   {
     "name": "Chiang Mai Local Wheels",
-    "type": "rental",
+    "operator_type": "rental",
     "city": "Chiang Mai",
-    "status": "demo_verified",
-    "license": "RENT-DEMO-3001",
-    "phone": "+66 53 000 300"
+    "status": "verified",
+    "tat_license": "RENT 50/00103",
+    "phone": "+66 53 000 300",
+    "notes": "Verified scooter rental in Old City. Helmet included, deposit returned at end of rental."
+  },
+  {
+    "name": "Doi Suthep Heritage Tours",
+    "operator_type": "tour",
+    "city": "Chiang Mai",
+    "status": "verified",
+    "tat_license": "TAT 50/00078",
+    "phone": "+66 53 222 015",
+    "notes": "Half-day temple tour. TAT-licensed guide. Pickup from hotels in Nimman and Old City."
+  },
+  {
+    "name": "Nimman Coffee House",
+    "operator_type": "restaurant",
+    "city": "Chiang Mai",
+    "status": "verified",
+    "tat_license": "REST 50/00266",
+    "phone": "+66 53 218 442",
+    "notes": "Independent registered cafe with printed receipts and posted menu prices."
+  },
+  {
+    "name": "Pattaya Blue Reef Diving",
+    "operator_type": "tour",
+    "city": "Pattaya",
+    "status": "verified",
+    "tat_license": "TAT 20/00132",
+    "phone": "+66 38 000 410",
+    "notes": "PADI-certified dive operator. TAT-licensed. Insurance included in booking."
+  },
+  {
+    "name": "Pattaya Beach Songthaew Co-op",
+    "operator_type": "transport",
+    "city": "Pattaya",
+    "status": "verified",
+    "tat_license": "TRANS 20/00009",
+    "phone": "+66 38 222 105",
+    "notes": "Official shared baht-bus loop on Beach Road. 10-20 THB posted fares."
+  },
+  {
+    "name": "Pattaya Sea Breeze Spa",
+    "operator_type": "wellness",
+    "city": "Pattaya",
+    "status": "verified",
+    "tat_license": "WELL 20/00056",
+    "phone": "+66 38 555 410",
+    "notes": "Licensed spa with itemised menu. Avoid touts who offer cheaper street pickups."
+  },
+  {
+    "name": "Sukhumvit Express Tours",
+    "operator_type": "tour",
+    "city": "Bangkok",
+    "status": "no_license",
+    "tat_license": null,
+    "phone": "+66 99 555 000",
+    "notes": "Demo entry: aggressive LINE-only sales, claims TAT but no verifiable license in directory. Caught one in late 2025."
+  },
+  {
+    "name": "Patong Jet Adventure",
+    "operator_type": "rental",
+    "city": "Phuket",
+    "status": "no_license",
+    "tat_license": null,
+    "phone": "+66 99 222 901",
+    "notes": "Demo entry: known for damage-cash-pressure pattern at Patong beach. No verifiable TAT/rental license."
   }
 ]

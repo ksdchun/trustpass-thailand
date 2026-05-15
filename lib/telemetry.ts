@@ -29,7 +29,6 @@ function getAppInsightsClient(): AppInsightsClient | null {
       defaultClient: AppInsightsClient;
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const appInsights = require("applicationinsights") as AppInsightsModule;
     appInsights.setup(connectionString).setAutoCollectConsole(false).setSendLiveMetrics(false).start();
     cachedClient = appInsights.defaultClient;

@@ -212,7 +212,7 @@ type DegradedInfo = {
   reason_text: string;
 };
 
-const SOURCE_LABELS: Record<RiskCheckResult["source"], string> = {
+const SOURCE_LABELS: Partial<Record<RiskCheckResult["source"], string>> = {
   "azure-openai": "Azure OpenAI",
   "local-demo": "TrustPass Grounding",
 };

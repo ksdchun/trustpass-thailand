@@ -44,7 +44,6 @@ export const scenarios: Array<{
   whyItMatters: string;
   image?: string;
   imageAlt?: string;
-  imageClassName?: string;
 }> = [
   {
     id: "transport",
@@ -69,7 +68,7 @@ export const scenarios: Array<{
     signals: ["menu item prices", "venue tier", "premium/famous venue context", "missing venue confirmation"],
     trustPassDoes: "Extracts all visible menu items, compares each item against the likely venue tier, and asks for venue clarification when needed.",
     whyItMatters: "High prices can be normal at famous venues but suspicious at local stalls. Venue context is the key.",
-    image: "/evidence/jay-fai-menu-demo.png",
+    image: "/evidence/cropped-menu.png",
     imageAlt: "Synthetic restaurant menu evidence used to test food price grounding"
   },
   {
@@ -83,7 +82,7 @@ export const scenarios: Array<{
     signals: ["full advance payment", "personal or mismatched account", "missing license", "time pressure"],
     trustPassDoes: "Prioritizes payment fraud grounding over unrelated OCR noise and recommends verification before money leaves the account.",
     whyItMatters: "Payment identity and operator legitimacy are central to avoiding fake bookings and refund disputes.",
-    image: "/evidence/fake-tour-payment-demo.png",
+    image: "/evidence/cropped-fake-tour-line.png",
     imageAlt: "Synthetic chat evidence showing a fake tour payment pattern"
   },
   {
@@ -151,17 +150,16 @@ export const visualStories = [
   {
     title: "Menu price context",
     label: "Food / venue grounding",
-    image: "/evidence/jay-fai-menu-demo.png",
+    image: "/evidence/cropped-menu.png",
     alt: "Synthetic premium restaurant menu evidence for food price verification",
     text: "High food prices are not automatically scams. TrustPass asks for venue context, then compares visible menu items against Bangkok food tiers."
   },
   {
     title: "Payment identity risk",
     label: "Tour / QR fraud",
-    image: "/evidence/fake-tour-payment-demo.png",
+    image: "/evidence/cropped-fake-tour-line.png",
     alt: "Synthetic mobile chat showing a fake tour payment request",
-    text: "Full prepayment, personal accounts, missing license details, and urgency language are grounded as stronger payment-fraud signals.",
-    imageClassName: "object-cover object-top"
+    text: "Full prepayment, personal accounts, missing license details, and urgency language are grounded as stronger payment-fraud signals."
   },
   {
     title: "QR account mismatch",

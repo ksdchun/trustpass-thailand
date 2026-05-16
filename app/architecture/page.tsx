@@ -21,7 +21,7 @@ export default function ArchitecturePage() {
             </Link>
           </div>
           <div className="rounded-[8px] border border-fluent-border bg-fluent-canvas p-3 shadow-soft">
-            <img src="/trustpass-architecture-current.svg" alt="TrustPass current Azure AI architecture" className="h-auto w-full rounded-[8px] border border-fluent-border bg-white" />
+            <img src="/trustpass-ai-grounding-layer.png" alt="TrustPass Azure AI and grounded safety layer architecture" className="h-auto w-full rounded-[8px] border border-fluent-border bg-white" />
           </div>
         </div>
       </section>

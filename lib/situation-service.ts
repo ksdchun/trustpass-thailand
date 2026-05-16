@@ -3,15 +3,43 @@ import { extractEvidenceHints } from "@/lib/evidence-hints";
 import { buildGroundingContext, getKnownVenueMatch } from "@/lib/grounding-tools";
 import { areTopicsCompatible, classifyTextRelevance, isGenericCheckMessage, topicLabel } from "@/lib/relevance";
 import { buildPrompt, classifyWithLocalRules, normalizeRiskResult } from "@/lib/risk-engine";
-import type { EvidenceTopic, RiskCheckRequest, RiskCheckResult, SituationAnalyzeRequest, SituationAnalyzeResponse } from "@/lib/types";
+import { TRUSTPASS_INTENT_ROUTER_PROMPT } from "@/lib/system-prompt";
+import type { EvidenceRelevanceResult, EvidenceTopic, RiskCheckRequest, RiskCheckResult, SituationAnalyzeRequest, SituationAnalyzeResponse } from "@/lib/types";
 
 type AnalyzeOptions = {
   allowClarification: boolean;
 };
 
+type IntentTopic = EvidenceTopic | "general_safety";
+
+type QuestionIntent = {
+  scope: "trustpass_case" | "not_related" | "unclear";
+  topic: IntentTopic;
+  action: "analyze_now" | "ask_clarification" | "reject";
+  confidence: "low" | "medium" | "high";
+  risk_hint: "low" | "caution" | "high" | "emergency" | "unknown";
+  clarification_key: string | null;
+  clarification_question: string | null;
+  suggested_answers: string[];
+  missing_context: string[];
+  reason: string;
+};
+
+const intentTopics: IntentTopic[] = [
+  "transport",
+  "food_menu",
+  "tour_payment",
+  "qr_payment",
+  "rental_document",
+  "damage_claim",
+  "job_lure",
+  "general_safety",
+  "unknown"
+];
+
 export async function analyzeSituation(input: SituationAnalyzeRequest, options: AnalyzeOptions): Promise<SituationAnalyzeResponse> {
   const payload = applyEvidencePolicy(normalizeAnalyzeRequest(input));
-  const scopeResponse = getScopeResponse(payload);
+  const scopeResponse = await getScopeResponse(payload, options);
   if (scopeResponse) return scopeResponse;
 
   const grounding = await buildGroundingContext(payload);
@@ -64,12 +92,31 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
   const answeredVenue = hasAnswer(request, "venue_confirmation");
   const answeredVenueLocation = hasAnswer(request, "venue_location");
   const answeredQrAccount = hasAnswer(request, "qr_account_match");
+  const answeredJobCastingContext = hasAnswer(request, "job_casting_context");
   const nonFoodGroundingPresent = hasGroundingTool(grounding, "operator_payment_reference") ||
     hasGroundingTool(grounding, "qr_payment_reference") ||
     hasGroundingTool(grounding, "rental_document_reference") ||
     hasGroundingTool(grounding, "damage_claim_reference") ||
     hasGroundingTool(grounding, "job_lure_reference") ||
     hasGroundingTool(grounding, "fare_reference");
+
+  if (
+    hasGroundingTool(grounding, "job_lure_reference") &&
+    !hasHighRiskJobLureSignal(grounding) &&
+    !answeredJobCastingContext
+  ) {
+    return {
+      clarification_key: "job_casting_context",
+      question: "Did they mention private pickup, a second location, travel outside Bangkok, secrecy, passport/phone handling, or an upfront fee?",
+      reason: "A street job/casting invitation can be legitimate, but the risk changes sharply if there is controlled transport, secrecy, document pressure, payment pressure, or travel toward another province or border area.",
+      suggested_answers: [
+        "No, only a street invitation",
+        "They offered private pickup or a second location",
+        "They asked me to keep it secret",
+        "They mentioned passport, phone, fee, or border travel"
+      ]
+    };
+  }
 
   if (hasDeterministicNonFoodEscalation(grounding)) {
     return null;
@@ -233,6 +280,137 @@ function getOpenAICompatibleBaseUrl(endpoint: string) {
   return null;
 }
 
+async function classifyQuestionIntentWithAzure(
+  message: string,
+  evidenceRelevance?: EvidenceRelevanceResult,
+  evidenceText?: string
+): Promise<QuestionIntent | null> {
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2024-10-21";
+  const timeoutMs = Number(process.env.AZURE_OPENAI_TIMEOUT_MS || 12000);
+
+  if (!endpoint || !apiKey || !deployment) return null;
+
+  const normalizedEndpoint = endpoint.replace(/\/$/, "");
+  const openAICompatibleBaseUrl = getOpenAICompatibleBaseUrl(normalizedEndpoint);
+  const evidencePreview = (evidenceText || "").replace(/\s+/g, " ").trim().slice(0, 900);
+  const messages: Array<{ role: "system" | "user"; content: string }> = [
+    {
+      role: "system",
+      content: TRUSTPASS_INTENT_ROUTER_PROMPT
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        task: "Classify the initial tourist question for TrustPass routing. Return JSON only.",
+        allowed_topics: intentTopics,
+        message,
+        evidence_topic: evidenceRelevance?.topic || "unknown",
+        evidence_relevance: evidenceRelevance?.relevance || "weak",
+        evidence_reason: evidenceRelevance?.reason || null,
+        evidence_preview: evidencePreview || null
+      })
+    }
+  ];
+
+  try {
+    let content: string | undefined | null;
+
+    if (openAICompatibleBaseUrl) {
+      const client = new OpenAI({
+        baseURL: openAICompatibleBaseUrl,
+        apiKey,
+        timeout: timeoutMs
+      });
+
+      const completion = await client.chat.completions.create({
+        model: deployment,
+        messages,
+        temperature: 0,
+        max_tokens: 420,
+        response_format: { type: "json_object" }
+      });
+
+      content = completion.choices[0]?.message?.content;
+    } else {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(
+          `${normalizedEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "api-key": apiKey
+            },
+            body: JSON.stringify({
+              messages,
+              temperature: 0,
+              max_tokens: 420,
+              response_format: { type: "json_object" }
+            }),
+            signal: controller.signal
+          }
+        );
+
+        if (!response.ok) return null;
+        const data = await response.json();
+        content = data?.choices?.[0]?.message?.content;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    return normalizeQuestionIntent(content ? JSON.parse(content) : null);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeQuestionIntent(value: unknown): QuestionIntent | null {
+  if (!value || typeof value !== "object") return null;
+
+  const raw = value as Record<string, unknown>;
+  const scope = raw.scope === "trustpass_case" || raw.scope === "not_related" || raw.scope === "unclear" ? raw.scope : "unclear";
+  const topic = typeof raw.topic === "string" && intentTopics.includes(raw.topic as IntentTopic) ? raw.topic as IntentTopic : "unknown";
+  const action = raw.action === "analyze_now" || raw.action === "ask_clarification" || raw.action === "reject" ? raw.action : scope === "trustpass_case" ? "analyze_now" : "reject";
+  const confidence = raw.confidence === "high" || raw.confidence === "medium" || raw.confidence === "low" ? raw.confidence : "low";
+  const riskHint = raw.risk_hint === "low" || raw.risk_hint === "caution" || raw.risk_hint === "high" || raw.risk_hint === "emergency" || raw.risk_hint === "unknown"
+    ? raw.risk_hint
+    : "unknown";
+  const clarificationKey = typeof raw.clarification_key === "string" && raw.clarification_key.trim() ? raw.clarification_key.slice(0, 80) : null;
+  const clarificationQuestion = typeof raw.clarification_question === "string" && raw.clarification_question.trim() ? raw.clarification_question.slice(0, 260) : null;
+  const suggestedAnswers = Array.isArray(raw.suggested_answers)
+    ? raw.suggested_answers.filter((answer): answer is string => typeof answer === "string" && answer.trim().length > 0).slice(0, 4)
+    : [];
+  const missingContext = Array.isArray(raw.missing_context)
+    ? raw.missing_context.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 6)
+    : [];
+  const reason = typeof raw.reason === "string" ? raw.reason.slice(0, 180) : "Azure OpenAI intent routing.";
+
+  return {
+    scope,
+    topic,
+    action,
+    confidence,
+    risk_hint: riskHint,
+    clarification_key: clarificationKey,
+    clarification_question: clarificationQuestion,
+    suggested_answers: suggestedAnswers,
+    missing_context: missingContext,
+    reason
+  };
+}
+
+function shouldUseQuestionIntentRouter(message: string, hasRelevantEvidence: boolean) {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized && !hasRelevantEvidence) return false;
+  return normalized.length <= 600;
+}
+
 function toCompletedResponse(result: RiskCheckResult): SituationAnalyzeResponse {
   return {
     status: "completed",
@@ -258,6 +436,12 @@ function applyGroundingRiskAdjustments(
   const groundedResult = applyGroundedSignalLabels(result, grounding);
   const taxiFareRiskResult = getTaxiFareRiskResult(groundedResult, grounding, request);
   if (taxiFareRiskResult) return taxiFareRiskResult;
+
+  const rentalDocumentRiskResult = getRentalDocumentRiskResult(groundedResult, grounding, request);
+  if (rentalDocumentRiskResult) return rentalDocumentRiskResult;
+
+  const jobLureRiskResult = getJobLureRiskResult(groundedResult, grounding, request);
+  if (jobLureRiskResult) return jobLureRiskResult;
 
   const damageClaimRiskResult = getDamageClaimRiskResult(groundedResult, grounding, request);
   if (damageClaimRiskResult) return damageClaimRiskResult;
@@ -430,6 +614,94 @@ function getDamageClaimRiskResult(
   };
 }
 
+function getRentalDocumentRiskResult(
+  result: RiskCheckResult,
+  grounding: NonNullable<RiskCheckResult["grounding"]>,
+  request: RiskCheckRequest
+): RiskCheckResult | null {
+  const rentalSignal = grounding.find((signal) => signal.tool === "rental_document_reference");
+  if (!rentalSignal || rentalSignal.metadata?.has_original_passport_request !== true) return null;
+
+  const interpretedSignals = Array.isArray(rentalSignal.metadata?.interpreted_signals)
+    ? rentalSignal.metadata.interpreted_signals.filter((signal): signal is string => typeof signal === "string")
+    : [];
+  const signals = Array.from(new Set([
+    ...interpretedSignals,
+    "Original passport requested as deposit"
+  ])).slice(0, 8);
+
+  return {
+    ...result,
+    risk_level: "High",
+    category: "Rental passport retention risk",
+    suspicious_signals: signals,
+    why_it_matters:
+      "A tourist's original passport is a critical identity document. If a rental operator keeps it as a deposit, the tourist can lose leverage during disputes or be pressured to pay unclear fees before the passport is returned.",
+    safe_next_steps: [
+      "Do not leave your original passport as a deposit.",
+      "Offer a passport copy plus a written cash/card deposit receipt instead.",
+      "Photograph the vehicle condition, contract, shop name, and deposit terms before using the rental.",
+      "If the passport is already being held and the shop refuses to return it, ask hotel staff, platform support, embassy, or Tourist Police 1155 for help."
+    ],
+    thai_phrase: "ขอใช้สำเนาพาสปอร์ตแทนตัวจริง และขอใบเสร็จเงินมัดจำได้ไหมครับ/ค่ะ",
+    evidence_to_save: ["Rental contract", "Passport/deposit clause", "Shop name and location", "Deposit receipt", "Before-use vehicle photos"],
+    contact_recommendation:
+      "Avoid handing over the original passport. If it is already being withheld or used as leverage, ask hotel staff, platform support, embassy, or Tourist Police 1155 for help.",
+    incident_report_summary: {
+      english: `TrustPass rental document check in ${request.city}: High risk because an original passport is requested or held as a rental deposit.`,
+      thai: `รายงาน TrustPass ในพื้นที่ ${request.city}: ระดับ High เนื่องจากมีการขอหรือถือพาสปอร์ตตัวจริงเป็นหลักประกันการเช่า`
+    }
+  };
+}
+
+function getJobLureRiskResult(
+  result: RiskCheckResult,
+  grounding: NonNullable<RiskCheckResult["grounding"]>,
+  request: RiskCheckRequest
+): RiskCheckResult | null {
+  const jobSignal = grounding.find((signal) => signal.tool === "job_lure_reference");
+  if (!jobSignal) return null;
+
+  const interpretedSignals = Array.isArray(jobSignal.metadata?.interpreted_signals)
+    ? jobSignal.metadata.interpreted_signals.filter((signal): signal is string => typeof signal === "string")
+    : [];
+  const highRisk = hasHighRiskJobLureSignal(grounding);
+  const riskLevel = highRisk ? "Emergency" : "Caution";
+
+  return {
+    ...result,
+    risk_level: riskLevel,
+    category: highRisk ? "Fake casting or job luring" : "Job/casting invitation verification",
+    suspicious_signals: Array.from(new Set(interpretedSignals)).slice(0, 8),
+    why_it_matters: highRisk
+      ? "The offer contains luring signals such as controlled pickup, secrecy, border-area travel, document/phone handling, or payment pressure. Those signals can create immediate personal safety risk for tourists."
+      : "A street job or casting invitation is not automatically an emergency, but it should be verified before you follow anyone, travel to a second location, pay a fee, or share documents.",
+    safe_next_steps: highRisk
+      ? [
+          "Do not get into a private vehicle or travel to a second location.",
+          "Stay in a public place and contact hotel staff, Tourist Police 1155, or your embassy if pressured.",
+          "Save the profile name, phone number, chat screenshots, pickup point, and vehicle details if safe."
+        ]
+      : [
+          "Do not go to a private location or vehicle based only on a street invitation.",
+          "Ask for the company name, official website, office address, and written casting details.",
+          "Verify with hotel staff or a trusted local contact before continuing.",
+          "Do not hand over your passport, phone, or any upfront fee."
+        ],
+    thai_phrase: highRisk
+      ? "ฉันไม่สะดวกเดินทางไปตามนัดแล้ว และต้องการติดต่อโรงแรมหรือตำรวจท่องเที่ยวก่อน"
+      : "ขอข้อมูลบริษัทและสถานที่นัดอย่างเป็นทางการก่อนตัดสินใจครับ/ค่ะ",
+    evidence_to_save: ["Profile or business name", "Phone number or chat screenshot", "Meeting location", "Any pickup, fee, passport, phone, secrecy, or travel instruction"],
+    contact_recommendation: highRisk
+      ? "Stop and stay public. Contact hotel security, Tourist Police 1155, embassy/consulate, or emergency services if you feel pressured, followed, or unsafe."
+      : "No emergency escalation from the current information alone. Verify with hotel staff or a trusted local person before continuing; contact Tourist Police 1155 only if pressure, threats, controlled transport, secrecy, or document demands appear.",
+    incident_report_summary: {
+      english: `TrustPass job/casting check in ${request.city}: ${riskLevel} risk. ${highRisk ? "The offer includes controlled or coercive luring signals." : "The invitation needs verification before the tourist follows instructions or travels to a second location."}`,
+      thai: `รายงาน TrustPass ในพื้นที่ ${request.city}: ระดับ ${riskLevel} สำหรับการชวนไปงานหรือแคสติ้ง ${highRisk ? "พบสัญญาณการล่อลวงหรือการควบคุมการเดินทาง" : "ควรตรวจสอบข้อมูลก่อนเดินทางหรือทำตามคำชวน"}`
+    }
+  };
+}
+
 function getFoodPriceRiskResult(
   groundedResult: RiskCheckResult,
   grounding: NonNullable<RiskCheckResult["grounding"]>,
@@ -525,14 +797,32 @@ function applyEvidencePolicy(request: RiskCheckRequest): RiskCheckRequest {
   };
 }
 
-function getScopeResponse(request: RiskCheckRequest): SituationAnalyzeResponse | null {
+async function getScopeResponse(request: RiskCheckRequest, options: AnalyzeOptions): Promise<SituationAnalyzeResponse | null> {
   const messageRelevance = classifyTextRelevance(request.message, "message");
   const evidenceText = request.evidenceText || "";
   const evidenceRelevance = request.evidenceRelevance || (evidenceText ? classifyTextRelevance(evidenceText, "evidence") : undefined);
   const hasRelevantEvidence = Boolean(evidenceRelevance?.usable_as_case_evidence && evidenceText.trim());
   const genericMessage = isGenericCheckMessage(request.message);
+  const intent = shouldUseQuestionIntentRouter(request.message, hasRelevantEvidence)
+    ? await classifyQuestionIntentWithAzure(request.message, evidenceRelevance, evidenceText)
+    : null;
+  const intentResponse = getIntentScopeResponse(request, intent, evidenceRelevance, hasRelevantEvidence, genericMessage, options);
+  if (intentResponse) return intentResponse;
 
-  if (genericMessage && hasRelevantEvidence) return null;
+  const routedMessageTopic = intent?.scope === "trustpass_case" && intent.confidence !== "low" ? mapIntentTopicToEvidenceTopic(intent.topic) : "unknown";
+  const routedAsGenericTrustQuestion = intent?.scope === "trustpass_case" && intent.confidence !== "low" && routedMessageTopic === "unknown";
+  const routedAsSpecificTrustQuestion = intent?.scope === "trustpass_case" && intent.confidence !== "low" && routedMessageTopic !== "unknown";
+
+  if ((genericMessage || routedAsGenericTrustQuestion) && hasRelevantEvidence) return null;
+
+  if (routedAsSpecificTrustQuestion && hasRelevantEvidence && evidenceRelevance) {
+    if (areTopicsCompatible(routedMessageTopic, evidenceRelevance.topic)) return null;
+    return evidenceMismatchResponse(
+      routedMessageTopic,
+      evidenceRelevance,
+      `Your question appears to be about ${topicLabel(routedMessageTopic)}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`
+    );
+  }
 
   if (!messageRelevance.usable_as_case_evidence && !hasRelevantEvidence) {
     return {
@@ -568,6 +858,109 @@ function getScopeResponse(request: RiskCheckRequest): SituationAnalyzeResponse |
   }
 
   return null;
+}
+
+function getIntentScopeResponse(
+  request: RiskCheckRequest,
+  intent: QuestionIntent | null,
+  evidenceRelevance: EvidenceRelevanceResult | undefined,
+  hasRelevantEvidence: boolean,
+  genericMessage: boolean,
+  options: AnalyzeOptions
+): SituationAnalyzeResponse | null {
+  if (!intent) return null;
+
+  if (intent.action === "reject" || intent.scope === "not_related" || (intent.scope === "unclear" && !hasRelevantEvidence)) {
+    return {
+      status: "out_of_scope",
+      message: intent.scope === "unclear"
+        ? "TrustPass needs a tourist scam, fraud, payment, rental, transport, menu-price, or safety-risk situation before it can check risk."
+        : "TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      suggested_next_inputs: scopeExamples(),
+      evidence_relevance: evidenceRelevance,
+      grounding: []
+    };
+  }
+
+  if (
+    options.allowClarification &&
+    intent.action === "ask_clarification" &&
+    intent.clarification_key &&
+    !hasAnswer(request, intent.clarification_key)
+  ) {
+    if (intent.clarification_key === "evidence_choice" && evidenceRelevance) {
+      return evidenceMismatchResponse(
+        mapIntentTopicToEvidenceTopic(intent.topic),
+        evidenceRelevance,
+        intent.clarification_question || "The typed situation and uploaded evidence appear to describe different cases. Which one should I check?"
+      );
+    }
+
+    if (!["route_context", "general_context"].includes(intent.clarification_key)) {
+      return null;
+    }
+
+    return {
+      status: "needs_clarification",
+      clarification_key: intent.clarification_key,
+      question: intent.clarification_question || defaultIntentClarificationQuestion(intent.topic),
+      reason: intent.reason,
+      suggested_answers: intent.suggested_answers.length > 0 ? intent.suggested_answers : defaultIntentSuggestedAnswers(intent.topic),
+      grounding: []
+    };
+  }
+
+  if (
+    intent.scope === "trustpass_case" &&
+    hasRelevantEvidence &&
+    evidenceRelevance &&
+    !genericMessage &&
+    intent.topic !== "general_safety" &&
+    mapIntentTopicToEvidenceTopic(intent.topic) !== "unknown" &&
+    !areTopicsCompatible(mapIntentTopicToEvidenceTopic(intent.topic), evidenceRelevance.topic)
+  ) {
+    return evidenceMismatchResponse(
+      mapIntentTopicToEvidenceTopic(intent.topic),
+      evidenceRelevance,
+      intent.clarification_question || `Your question appears to be about ${topicLabel(mapIntentTopicToEvidenceTopic(intent.topic))}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`
+    );
+  }
+
+  return null;
+}
+
+function mapIntentTopicToEvidenceTopic(topic: IntentTopic): EvidenceTopic {
+  return topic === "general_safety" ? "unknown" : topic;
+}
+
+function defaultIntentClarificationQuestion(topic: IntentTopic) {
+  switch (topic) {
+    case "transport":
+      return "Did they quote a fare, refuse the meter, change the route, or pressure you to get in?";
+    case "food_menu":
+      return "Where is this menu from, or are you currently at the restaurant?";
+    case "qr_payment":
+      return "Does the QR/payment account name match the business name?";
+    case "job_lure":
+      return "Did they mention private pickup, a second location, travel outside Bangkok, secrecy, passport/phone handling, or any upfront fee?";
+    default:
+      return "What is the one detail that would help TrustPass check this safely?";
+  }
+}
+
+function defaultIntentSuggestedAnswers(topic: IntentTopic) {
+  switch (topic) {
+    case "transport":
+      return ["They quoted a fixed fare", "They refused the meter", "They pressured me", "No, just a normal taxi offer"];
+    case "food_menu":
+      return ["I am at the restaurant now", "I only have a menu screenshot", "The restaurant name is visible"];
+    case "qr_payment":
+      return ["Yes, it matches", "No, it is a different personal name", "The business name is not shown"];
+    case "job_lure":
+      return ["No, only a street invitation", "They offered private pickup or a second location", "They asked me to keep it secret", "They mentioned passport, phone, fee, or border travel"];
+    default:
+      return ["I can add more context", "Use the uploaded evidence", "This is not a TrustPass case"];
+  }
 }
 
 function evidenceMismatchResponse(
@@ -850,6 +1243,17 @@ function hasDeterministicNonFoodEscalation(grounding: RiskCheckResult["grounding
       ["operator_payment_reference", "rental_document_reference", "damage_claim_reference", "job_lure_reference"].includes(signal.tool)
     )
   );
+}
+
+function hasHighRiskJobLureSignal(grounding: RiskCheckResult["grounding"]) {
+  const signal = grounding?.find((item) => item.tool === "job_lure_reference");
+  if (!signal) return false;
+
+  return signal.metadata?.has_controlled_pickup === true ||
+    signal.metadata?.has_border_travel === true ||
+    signal.metadata?.has_secrecy_instruction === true ||
+    signal.metadata?.has_document_or_phone_request === true ||
+    signal.metadata?.has_upfront_fee === true;
 }
 
 function hasAnswer(request: RiskCheckRequest, key: string) {

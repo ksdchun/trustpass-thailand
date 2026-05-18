@@ -37,25 +37,28 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
     });
 
   if (matches.length === 0) {
+    const isChinese = request.language === "Chinese";
     return {
       risk_level: "Low",
-      category: "No strong scam pattern detected",
+      category: isChinese ? "未发现强烈诈骗模式" : "No strong scam pattern detected",
       suspicious_signals: [],
-      why_it_matters:
-        "The message does not match the strongest tourism scam patterns. Still verify business identity, price, receipt, and cancellation terms before paying or travelling.",
-      safe_next_steps: [
-        "Ask for an official receipt and written terms before paying.",
-        "Use hotel staff or a trusted platform to verify the operator.",
-        "Save screenshots and location details if anything feels unusual."
-      ],
+      why_it_matters: isChinese
+        ? "未发现符合泰国旅游诈骗规律的强烈信号。付款或出行前请仍核实商家身份、价格、收据和取消条款。"
+        : "The message does not match the strongest tourism scam patterns. Still verify business identity, price, receipt, and cancellation terms before paying or travelling.",
+      safe_next_steps: isChinese
+        ? ["付款前索取正式收据和书面条款。", "请酒店工作人员或可信平台协助核实运营商。", "如有任何异常，请截图保存位置信息。"]
+        : ["Ask for an official receipt and written terms before paying.", "Use hotel staff or a trusted platform to verify the operator.", "Save screenshots and location details if anything feels unusual."],
       thai_phrase: defaultThaiPhrase,
       evidence_to_save: defaultEvidence,
-      contact_recommendation: "No escalation is recommended from the current information. Confirm basic details and ask hotel staff only if something feels unclear or changes.",
-      incident_report_summary: buildReport("No strong scam pattern detected", "Low", request.city, []),
+      contact_recommendation: isChinese
+        ? "根据现有信息，无需上报。请确认基本信息，如有不明之处可询问酒店工作人员。"
+        : "No escalation is recommended from the current information. Confirm basic details and ask hotel staff only if something feels unclear or changes.",
+      incident_report_summary: buildReport(isChinese ? "未发现强烈诈骗模式" : "No strong scam pattern detected", "Low", request.city, [], isChinese),
       source: "local-demo"
     };
   }
 
+  const isChinese = request.language === "Chinese";
   const strongest = matches[0].pattern;
   const allSignals = Array.from(new Set(matches.flatMap((match) => displaySignalsForMatch(match.pattern.id, match.hits, combined)))).slice(0, 8);
   const actionSet = Array.from(new Set(matches.flatMap((match) => match.pattern.actions))).slice(0, 5);
@@ -67,9 +70,9 @@ export function classifyWithLocalRules(request: RiskCheckRequest): RiskCheckResu
     why_it_matters: strongest.why,
     safe_next_steps: actionSet,
     thai_phrase: strongest.thaiPhrase,
-    evidence_to_save: evidenceFor(strongest.category),
-    contact_recommendation: contactFor(strongest.riskLevel),
-    incident_report_summary: buildReport(strongest.category, strongest.riskLevel, request.city, allSignals),
+    evidence_to_save: evidenceFor(strongest.category, isChinese),
+    contact_recommendation: contactFor(strongest.riskLevel, isChinese),
+    incident_report_summary: buildReport(strongest.category, strongest.riskLevel, request.city, allSignals, isChinese),
     source: "local-demo"
   };
 }
@@ -224,37 +227,53 @@ function groundingOr(value: unknown, fallback?: GroundingSignal[]) {
     .slice(0, 4);
 }
 
-function evidenceFor(category: string) {
-  if (category.includes("Taxi")) {
-    return ["Taxi plate", "Pickup and destination", "Time", "Quoted fare", "Driver or vehicle details if safe"];
+function evidenceFor(category: string, isChinese = false) {
+  if (category.includes("Taxi") || category.includes("出租车")) {
+    return isChinese
+      ? ["出租车车牌", "上下车地点", "时间", "报价", "司机或车辆信息（如安全可记录）"]
+      : ["Taxi plate", "Pickup and destination", "Time", "Quoted fare", "Driver or vehicle details if safe"];
   }
-  if (category.includes("casting") || category.includes("job")) {
-    return ["Chat screenshots", "Phone number", "Profile name", "Pickup location", "Vehicle plate if safe", "Job/casting offer details"];
+  if (category.includes("casting") || category.includes("job") || category.includes("招聘") || category.includes("选角")) {
+    return isChinese
+      ? ["聊天截图", "电话号码", "账号名称", "接车地点", "车牌（如安全可记录）", "招聘/选角邀约详情"]
+      : ["Chat screenshots", "Phone number", "Profile name", "Pickup location", "Vehicle plate if safe", "Job/casting offer details"];
   }
-  if (category.includes("Rental")) {
-    return ["Rental contract", "Shop name", "Receipt", "Vehicle photos before use", "Passport/deposit terms"];
+  if (category.includes("Rental") || category.includes("租赁")) {
+    return isChinese
+      ? ["租赁合同", "店名", "收据", "使用前车辆照片", "护照/押金条款"]
+      : ["Rental contract", "Shop name", "Receipt", "Vehicle photos before use", "Passport/deposit terms"];
   }
-  if (category.includes("payment") || category.includes("tour")) {
-    return ["Flyer or chat screenshot", "QR/payment account name", "Business name", "License number if shown", "Receipt or cancellation terms"];
+  if (category.includes("payment") || category.includes("tour") || category.includes("付款") || category.includes("旅游")) {
+    return isChinese
+      ? ["传单或聊天截图", "QR/付款账户名称", "商家名称", "许可证号（如显示）", "收据或取消条款"]
+      : ["Flyer or chat screenshot", "QR/payment account name", "Business name", "License number if shown", "Receipt or cancellation terms"];
   }
   return defaultEvidence;
 }
 
-function contactFor(level: RiskLevel) {
+function contactFor(level: RiskLevel, isChinese = false) {
   if (level === "Emergency") {
-    return "Stop immediately and move to a safe public place. Contact Tourist Police 1155, hotel security, emergency medical help, or your embassy/consulate as relevant.";
+    return isChinese
+      ? "立即停止并转移到安全的公共场所。根据情况联系旅游警察1155、酒店保安、紧急医疗或您的大使馆/领事馆。"
+      : "Stop immediately and move to a safe public place. Contact Tourist Police 1155, hotel security, emergency medical help, or your embassy/consulate as relevant.";
   }
   if (level === "High") {
-    return "Do not proceed until verified. Ask hotel staff, the official platform, or the relevant company for help first; contact Tourist Police 1155 if pressured, threatened, blocked, or already defrauded.";
+    return isChinese
+      ? "核实前请勿继续。请先联系酒店工作人员、官方平台或相关公司寻求帮助；若遭受威胁、施压、阻拦或已被诈骗，请拨打旅游警察1155。"
+      : "Do not proceed until verified. Ask hotel staff, the official platform, or the relevant company for help first; contact Tourist Police 1155 if pressured, threatened, blocked, or already defrauded.";
   }
   if (level === "Caution") {
-    return "Verify calmly first through staff, hotel front desk, or a trusted platform. Tourist Police 1155 is only needed if pressure, threats, refusal to let you leave, or a major dispute appears.";
+    return isChinese
+      ? "请先冷静地通过工作人员、酒店前台或可信平台进行核实。仅在遭受施压、威胁、拒绝放行或出现重大纠纷时才需要联系旅游警察1155。"
+      : "Verify calmly first through staff, hotel front desk, or a trusted platform. Tourist Police 1155 is only needed if pressure, threats, refusal to let you leave, or a major dispute appears.";
   }
-  return "No escalation recommended. Proceed normally, confirm the details, and keep receipts only if useful.";
+  return isChinese
+    ? "无需上报。正常进行，确认相关信息，如有需要保留收据即可。"
+    : "No escalation recommended. Proceed normally, confirm the details, and keep receipts only if useful.";
 }
 
-function buildReport(category: string, level: RiskLevel, city: string, signals: string[]) {
-  const signalText = signals.length ? signals.join(", ") : "no strong signals detected";
+function buildReport(category: string, level: RiskLevel, city: string, signals: string[], isChinese = false) {
+  const signalText = signals.length ? signals.join(", ") : (isChinese ? "未发现强烈信号" : "no strong signals detected");
   return {
     english: `TrustPass check in ${city}: ${level} risk for ${category}. Signals: ${signalText}. Tourist should verify before proceeding and save evidence.`,
     thai: `รายงาน TrustPass ในพื้นที่ ${city}: ระดับความเสี่ยง ${level} หมวด ${category} สัญญาณที่พบ: ${signalText} ควรตรวจสอบก่อนดำเนินการและเก็บหลักฐานไว้`

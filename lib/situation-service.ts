@@ -105,16 +105,18 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !hasHighRiskJobLureSignal(grounding) &&
     !answeredJobCastingContext
   ) {
+    const isChinese = request.language === "Chinese";
     return {
       clarification_key: "job_casting_context",
-      question: "Did they mention private pickup, a second location, travel outside Bangkok, secrecy, passport/phone handling, or an upfront fee?",
-      reason: "A street job/casting invitation can be legitimate, but the risk changes sharply if there is controlled transport, secrecy, document pressure, payment pressure, or travel toward another province or border area.",
-      suggested_answers: [
-        "No, only a street invitation",
-        "They offered private pickup or a second location",
-        "They asked me to keep it secret",
-        "They mentioned passport, phone, fee, or border travel"
-      ]
+      question: isChinese
+        ? "他们是否提到私人接车、第二地点、前往曼谷以外、保密要求、处理护照/手机，或预付费用？"
+        : "Did they mention private pickup, a second location, travel outside Bangkok, secrecy, passport/phone handling, or an upfront fee?",
+      reason: isChinese
+        ? "街头招聘/选角邀请可能是合法的，但如果涉及受控交通、保密要求、证件压力、付款压力或前往其他省份/边境地区，风险会急剧上升。"
+        : "A street job/casting invitation can be legitimate, but the risk changes sharply if there is controlled transport, secrecy, document pressure, payment pressure, or travel toward another province or border area.",
+      suggested_answers: isChinese
+        ? ["不，只是街头邀请", "他们提供了私人接车或第二地点", "他们要求我保密", "他们提到了护照、手机、费用或边境出行"]
+        : ["No, only a street invitation", "They offered private pickup or a second location", "They asked me to keep it secret", "They mentioned passport, phone, fee, or border travel"]
     };
   }
 
@@ -130,11 +132,18 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !venueMatch.matchedByText &&
     !answeredVenue
   ) {
+    const isChinese = request.language === "Chinese";
     return {
       clarification_key: "venue_confirmation",
-      question: `Are you currently inside ${venueMatch.venue.name}, or did this menu come from ${venueMatch.venue.name}?`,
-      reason: "Your GPS is near a known premium venue, but the menu text does not clearly show the restaurant name. The venue context materially changes whether high prices are normal.",
-      suggested_answers: [`Yes, this is ${venueMatch.venue.name}`, "No, this is another restaurant", "Not sure"]
+      question: isChinese
+        ? `您目前是否在 ${venueMatch.venue.name} 内，或者这份菜单来自 ${venueMatch.venue.name}？`
+        : `Are you currently inside ${venueMatch.venue.name}, or did this menu come from ${venueMatch.venue.name}?`,
+      reason: isChinese
+        ? "您的GPS位置靠近一处知名高端餐厅，但菜单文字未清晰显示餐厅名称。地点信息对于判断高价是否正常至关重要。"
+        : "Your GPS is near a known premium venue, but the menu text does not clearly show the restaurant name. The venue context materially changes whether high prices are normal.",
+      suggested_answers: isChinese
+        ? [`是的，这是 ${venueMatch.venue.name}`, "不，这是另一家餐厅", "不确定"]
+        : [`Yes, this is ${venueMatch.venue.name}`, "No, this is another restaurant", "Not sure"]
     };
   }
 
@@ -146,11 +155,18 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !hasFoodTierClue(combined) &&
     !answeredVenueLocation
   ) {
+    const isChinese = request.language === "Chinese";
     return {
       clarification_key: "venue_location",
-      question: "Where is this menu from, or are you currently at the restaurant?",
-      reason: "Menu price risk depends heavily on the restaurant and location. The OCR did not find a clear venue name and no GPS location was provided.",
-      suggested_answers: ["I am at the restaurant now", "I only have a menu screenshot"]
+      question: isChinese
+        ? "这份菜单来自哪里，或者您目前是否在餐厅内？"
+        : "Where is this menu from, or are you currently at the restaurant?",
+      reason: isChinese
+        ? "菜单价格风险在很大程度上取决于餐厅和位置。OCR未找到清晰的场所名称，也未提供GPS位置。"
+        : "Menu price risk depends heavily on the restaurant and location. The OCR did not find a clear venue name and no GPS location was provided.",
+      suggested_answers: isChinese
+        ? ["我目前在餐厅内", "我只有菜单截图"]
+        : ["I am at the restaurant now", "I only have a menu screenshot"]
     };
   }
 
@@ -163,11 +179,18 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !hasConcreteFoodScamSignal(combined) &&
     !answeredVenueLocation
   ) {
+    const isChinese = request.language === "Chinese";
     return {
       clarification_key: "venue_location",
-      question: "Is this really a street/local stall, or is it a sit-down, mall, seafood, or famous venue?",
-      reason: "The detected price is high for a normal street/local stall, but the same price may be normal at seafood, mall, or famous venues.",
-      suggested_answers: ["Street/local stall", "Mall or sit-down restaurant", "Famous or seafood venue"]
+      question: isChinese
+        ? "这真的是路边摊/小店吗，还是正式餐厅、商场、海鲜或知名餐厅？"
+        : "Is this really a street/local stall, or is it a sit-down, mall, seafood, or famous venue?",
+      reason: isChinese
+        ? "检测到的价格对于普通路边摊来说偏高，但同样的价格在海鲜、商场或知名餐厅可能属正常范围。"
+        : "The detected price is high for a normal street/local stall, but the same price may be normal at seafood, mall, or famous venues.",
+      suggested_answers: isChinese
+        ? ["路边摊/小店", "商场或正式餐厅", "知名或海鲜餐厅"]
+        : ["Street/local stall", "Mall or sit-down restaurant", "Famous or seafood venue"]
     };
   }
 
@@ -177,11 +200,18 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !hasGroundingTool(grounding, "operator_payment_reference") &&
     !answeredQrAccount
   ) {
+    const isChinese = request.language === "Chinese";
     return {
       clarification_key: "qr_account_match",
-      question: "Does the QR/payment account name match the business or tour operator name?",
-      reason: "A personal payment account can be normal for some small businesses, but a mismatch matters for fraud risk and refund disputes.",
-      suggested_answers: ["Yes, it matches", "No, it is a different personal name", "The business name is not shown"]
+      question: isChinese
+        ? "QR码/付款账户名称是否与商家或旅游运营商名称一致？"
+        : "Does the QR/payment account name match the business or tour operator name?",
+      reason: isChinese
+        ? "对于部分小型商家，使用个人付款账户可能属正常情况，但账户不匹配会影响诈骗风险评估和退款纠纷处理。"
+        : "A personal payment account can be normal for some small businesses, but a mismatch matters for fraud risk and refund disputes.",
+      suggested_answers: isChinese
+        ? ["是的，名称一致", "不，是不同的个人名称", "未显示商家名称"]
+        : ["Yes, it matches", "No, it is a different personal name", "The business name is not shown"]
     };
   }
 
@@ -192,11 +222,16 @@ function getClarification(request: RiskCheckRequest, grounding: RiskCheckResult[
     !answeredVenueLocation &&
     !answeredVenue
   ) {
+    const isChinese = request.language === "Chinese";
     return {
       clarification_key: "venue_location",
-      question: "Can you confirm the restaurant name or share your location?",
-      reason: "The evidence appears to be a menu, but the backend cannot ground whether the price is normal for that venue.",
-      suggested_answers: ["I am not sure"]
+      question: isChinese
+        ? "您能确认餐厅名称或分享您的位置吗？"
+        : "Can you confirm the restaurant name or share your location?",
+      reason: isChinese
+        ? "证据看起来是菜单，但系统无法确认该价格对该场所是否正常。"
+        : "The evidence appears to be a menu, but the backend cannot ground whether the price is normal for that venue.",
+      suggested_answers: isChinese ? ["我不确定"] : ["I am not sure"]
     };
   }
 
@@ -817,18 +852,26 @@ async function getScopeResponse(request: RiskCheckRequest, options: AnalyzeOptio
 
   if (routedAsSpecificTrustQuestion && hasRelevantEvidence && evidenceRelevance) {
     if (areTopicsCompatible(routedMessageTopic, evidenceRelevance.topic)) return null;
+    const isChinese2 = request.language === "Chinese";
     return evidenceMismatchResponse(
       routedMessageTopic,
       evidenceRelevance,
-      `Your question appears to be about ${topicLabel(routedMessageTopic)}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`
+      isChinese2
+        ? `您的问题似乎与${topicLabel(routedMessageTopic)}有关，但上传的证据看起来是${topicLabel(evidenceRelevance.topic)}。您希望核查哪一个？`
+        : `Your question appears to be about ${topicLabel(routedMessageTopic)}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`,
+      isChinese2
     );
   }
 
-  if (!messageRelevance.usable_as_case_evidence && !hasRelevantEvidence) {
+  const intentConfirmedCase = intent?.scope === "trustpass_case";
+  if (!messageRelevance.usable_as_case_evidence && !hasRelevantEvidence && !intentConfirmedCase) {
+    const isChinese = request.language === "Chinese";
     return {
       status: "out_of_scope",
-      message: "TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
-      suggested_next_inputs: scopeExamples(),
+      message: isChinese
+        ? "TrustPass 核查泰国旅游诈骗、欺诈、付款、交通、租赁、菜单价格和安全风险情况。此处未检测到此类情况。"
+        : "TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
+      suggested_next_inputs: scopeExamples(request.language),
       evidence_relevance: evidenceRelevance,
       grounding: []
     };
@@ -837,10 +880,14 @@ async function getScopeResponse(request: RiskCheckRequest, options: AnalyzeOptio
   if (messageRelevance.usable_as_case_evidence && !hasRelevantEvidence) return null;
 
   if (!messageRelevance.usable_as_case_evidence && hasRelevantEvidence && !genericMessage) {
+    const isChinese3 = request.language === "Chinese";
     return evidenceMismatchResponse(
       "unknown",
       evidenceRelevance!,
-      "Your message does not describe a TrustPass case, but the uploaded evidence looks relevant. Which one should I check?"
+      isChinese3
+        ? "您的描述不构成TrustPass核查案例，但上传的证据看起来相关。您希望核查哪一个？"
+        : "Your message does not describe a TrustPass case, but the uploaded evidence looks relevant. Which one should I check?",
+      isChinese3
     );
   }
 
@@ -850,10 +897,14 @@ async function getScopeResponse(request: RiskCheckRequest, options: AnalyzeOptio
     evidenceRelevance &&
     !areTopicsCompatible(messageRelevance.topic, evidenceRelevance.topic)
   ) {
+    const isChinese4 = request.language === "Chinese";
     return evidenceMismatchResponse(
       messageRelevance.topic,
       evidenceRelevance!,
-      `Your message is about ${topicLabel(messageRelevance.topic)}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`
+      isChinese4
+        ? `您的描述与${topicLabel(messageRelevance.topic)}有关，但上传的证据看起来是${topicLabel(evidenceRelevance.topic)}。您希望核查哪一个？`
+        : `Your message is about ${topicLabel(messageRelevance.topic)}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`,
+      isChinese4
     );
   }
 
@@ -870,13 +921,19 @@ function getIntentScopeResponse(
 ): SituationAnalyzeResponse | null {
   if (!intent) return null;
 
+  const isChinese = request.language === "Chinese";
+
   if (intent.action === "reject" || intent.scope === "not_related" || (intent.scope === "unclear" && !hasRelevantEvidence)) {
     return {
       status: "out_of_scope",
       message: intent.scope === "unclear"
-        ? "TrustPass needs a tourist scam, fraud, payment, rental, transport, menu-price, or safety-risk situation before it can check risk."
-        : "TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here.",
-      suggested_next_inputs: scopeExamples(),
+        ? (isChinese
+            ? "TrustPass 需要旅游诈骗、欺诈、付款、租赁、交通、菜单价格或安全风险的具体情况才能进行风险核查。"
+            : "TrustPass needs a tourist scam, fraud, payment, rental, transport, menu-price, or safety-risk situation before it can check risk.")
+        : (isChinese
+            ? "TrustPass 核查泰国旅游诈骗、欺诈、付款、交通、租赁、菜单价格和安全风险情况。此处未检测到此类情况。"
+            : "TrustPass checks Thailand tourist scam, fraud, payment, transport, rental, menu-price, and safety-risk situations. I could not detect that kind of situation here."),
+      suggested_next_inputs: scopeExamples(request.language),
       evidence_relevance: evidenceRelevance,
       grounding: []
     };
@@ -892,7 +949,10 @@ function getIntentScopeResponse(
       return evidenceMismatchResponse(
         mapIntentTopicToEvidenceTopic(intent.topic),
         evidenceRelevance,
-        intent.clarification_question || "The typed situation and uploaded evidence appear to describe different cases. Which one should I check?"
+        intent.clarification_question || (isChinese
+          ? "文字描述和上传的证据似乎描述的是不同的情况。您希望核查哪一个？"
+          : "The typed situation and uploaded evidence appear to describe different cases. Which one should I check?"),
+        isChinese
       );
     }
 
@@ -903,9 +963,9 @@ function getIntentScopeResponse(
     return {
       status: "needs_clarification",
       clarification_key: intent.clarification_key,
-      question: intent.clarification_question || defaultIntentClarificationQuestion(intent.topic),
+      question: intent.clarification_question || defaultIntentClarificationQuestion(intent.topic, isChinese),
       reason: intent.reason,
-      suggested_answers: intent.suggested_answers.length > 0 ? intent.suggested_answers : defaultIntentSuggestedAnswers(intent.topic),
+      suggested_answers: intent.suggested_answers.length > 0 ? intent.suggested_answers : defaultIntentSuggestedAnswers(intent.topic, isChinese),
       grounding: []
     };
   }
@@ -922,7 +982,10 @@ function getIntentScopeResponse(
     return evidenceMismatchResponse(
       mapIntentTopicToEvidenceTopic(intent.topic),
       evidenceRelevance,
-      intent.clarification_question || `Your question appears to be about ${topicLabel(mapIntentTopicToEvidenceTopic(intent.topic))}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`
+      intent.clarification_question || (isChinese
+        ? `您的问题似乎与${topicLabel(mapIntentTopicToEvidenceTopic(intent.topic))}有关，但上传的证据看起来是${topicLabel(evidenceRelevance.topic)}。您希望核查哪一个？`
+        : `Your question appears to be about ${topicLabel(mapIntentTopicToEvidenceTopic(intent.topic))}, but the uploaded evidence looks like ${topicLabel(evidenceRelevance.topic)}. Which one should I check?`),
+      isChinese
     );
   }
 
@@ -933,7 +996,16 @@ function mapIntentTopicToEvidenceTopic(topic: IntentTopic): EvidenceTopic {
   return topic === "general_safety" ? "unknown" : topic;
 }
 
-function defaultIntentClarificationQuestion(topic: IntentTopic) {
+function defaultIntentClarificationQuestion(topic: IntentTopic, isChinese = false) {
+  if (isChinese) {
+    switch (topic) {
+      case "transport": return "他们是否报了固定价格、拒绝计表、更改路线，或向您施压要求上车？";
+      case "food_menu": return "这份菜单来自哪里，或者您目前是否在餐厅内？";
+      case "qr_payment": return "QR码/付款账户名称是否与商家名称一致？";
+      case "job_lure": return "他们是否提到私人接车、第二地点、前往曼谷以外、保密要求、处理护照/手机，或任何预付费用？";
+      default: return "还有哪一个细节可以帮助TrustPass安全核查此情况？";
+    }
+  }
   switch (topic) {
     case "transport":
       return "Did they quote a fare, refuse the meter, change the route, or pressure you to get in?";
@@ -948,7 +1020,16 @@ function defaultIntentClarificationQuestion(topic: IntentTopic) {
   }
 }
 
-function defaultIntentSuggestedAnswers(topic: IntentTopic) {
+function defaultIntentSuggestedAnswers(topic: IntentTopic, isChinese = false) {
+  if (isChinese) {
+    switch (topic) {
+      case "transport": return ["他们报了固定价格", "他们拒绝使用计表", "他们向我施压", "不，只是正常的出租车邀约"];
+      case "food_menu": return ["我目前在餐厅内", "我只有菜单截图", "菜单上可以看到餐厅名称"];
+      case "qr_payment": return ["是的，名称一致", "不，是不同的个人名称", "未显示商家名称"];
+      case "job_lure": return ["不，只是街头邀请", "他们提供了私人接车或第二地点", "他们要求我保密", "他们提到了护照、手机、费用或边境出行"];
+      default: return ["我可以提供更多背景信息", "使用已上传的证据", "这不是TrustPass核查的案例"];
+    }
+  }
   switch (topic) {
     case "transport":
       return ["They quoted a fixed fare", "They refused the meter", "They pressured me", "No, just a normal taxi offer"];
@@ -966,14 +1047,19 @@ function defaultIntentSuggestedAnswers(topic: IntentTopic) {
 function evidenceMismatchResponse(
   messageTopic: EvidenceTopic,
   evidenceRelevance: NonNullable<RiskCheckRequest["evidenceRelevance"]>,
-  question: string
+  question: string,
+  isChinese = false
 ): SituationAnalyzeResponse {
   return {
     status: "evidence_mismatch",
     clarification_key: "evidence_choice",
     question,
-    reason: "TrustPass treats OCR as supporting evidence. The typed situation and uploaded evidence should describe the same case before risk scoring.",
-    suggested_answers: ["Use my typed situation", "Use the uploaded evidence", "I will upload the correct evidence"],
+    reason: isChinese
+      ? "TrustPass将OCR视为辅助证据。在进行风险评分前，文字描述和上传的证据应描述同一个案例。"
+      : "TrustPass treats OCR as supporting evidence. The typed situation and uploaded evidence should describe the same case before risk scoring.",
+    suggested_answers: isChinese
+      ? ["使用我的文字描述", "使用上传的证据", "我将上传正确的证据"]
+      : ["Use my typed situation", "Use the uploaded evidence", "I will upload the correct evidence"],
     message_topic: messageTopic,
     evidence_topic: evidenceRelevance.topic,
     evidence_relevance: evidenceRelevance,
@@ -981,7 +1067,16 @@ function evidenceMismatchResponse(
   };
 }
 
-function scopeExamples() {
+function scopeExamples(language?: string) {
+  if (language === "Chinese") {
+    return [
+      "出租车司机说计价器坏了，要收800泰铢从暹罗送我去郑王庙。",
+      "一个LINE旅游卖家要求全额预付到个人银行账户。",
+      "租车店要扣押我的原版护照。",
+      "这份菜单照片看起来很贵，这家餐厅正常吗？",
+      "一个选角经纪人提出免费接机去美索，还叮嘱我不要告诉酒店。"
+    ];
+  }
   return [
     "Taxi driver says the meter is broken and asks 800 baht from Siam to Wat Pho.",
     "A LINE tour seller asks for full payment to a personal bank account.",

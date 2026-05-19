@@ -1,10 +1,16 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, BarChart3, Bot, FileText, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { SiteNav } from "@/components/SiteNav";
-import { azureServices, evidenceCards, scenarios, visualStories } from "@/lib/demo-content";
+import { scenarios, visualStories as visualStoriesBase } from "@/lib/demo-content";
+import { useLanguage } from "@/lib/language-context";
+import { translations } from "@/lib/translations";
 
 export default function HomePage() {
+  const { lang } = useLanguage();
+  const t = translations[lang];
   return (
     <main>
       <SiteNav />
@@ -13,24 +19,24 @@ export default function HomePage() {
           <div className="flex flex-col justify-center">
             <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-sm font-semibold text-azure">
               <Sparkles className="h-4 w-4" />
-              Tourism trust infrastructure
+              {t.homeBadge}
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-ink sm:text-5xl lg:text-6xl">
-              TrustPass Thailand
+              {t.homeH1}
             </h1>
             <p className="mt-4 max-w-2xl text-xl font-semibold text-fluent-muted">
-              AI Scam & Fraud Shield for Tourists
+              {t.homeSubtitle}
             </p>
             <p className="mt-5 max-w-2xl text-base leading-7 text-fluent-muted">
-              A guided risk-check workflow where tourists can describe suspicious situations, attach evidence, and get Azure AI-powered risk signals, safe next steps, Thai phrases, and structured help reports before harm happens.
+              {t.homeDesc}
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/check" className="inline-flex items-center gap-2 rounded-[8px] bg-azure px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-fluent-blueDark">
-                Try Risk Check
+                {t.tryRiskCheck}
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-[8px] border border-fluent-border bg-white px-5 py-3 text-sm font-bold text-ink transition hover:border-azure hover:text-azure">
-                View Dashboard
+                {t.viewDashboard}
                 <BarChart3 className="h-4 w-4" />
               </Link>
             </div>
@@ -50,7 +56,7 @@ export default function HomePage() {
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-4">
-          {evidenceCards.map((card) => (
+          {t.evidenceCards.map((card) => (
             <div key={card.label} className="rounded-[8px] border border-fluent-border bg-white p-5 shadow-sm">
               <p className="text-3xl font-bold text-azure">{card.value}</p>
               <p className="mt-2 text-sm font-bold text-ink">{card.label}</p>
@@ -63,19 +69,12 @@ export default function HomePage() {
       <section className="border-y border-fluent-border bg-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
           <div>
-            <p className="text-sm font-bold uppercase tracking-wide text-azure">Problem</p>
-            <h2 className="mt-2 text-3xl font-bold text-ink">Thailand tourism trust is being damaged before tourists ask for help.</h2>
-            <p className="mt-4 text-base leading-7 text-fluent-muted">
-              Scams and fraud range from everyday overcharging to fake tour payments, passport leverage, and critical fake job or casting luring. Emergency tools help after an incident; TrustPass focuses on the uncertain moment before tourists pay, travel, or follow instructions.
-            </p>
+            <p className="text-sm font-bold uppercase tracking-wide text-azure">{t.problemKicker}</p>
+            <h2 className="mt-2 text-3xl font-bold text-ink">{t.problemH2}</h2>
+            <p className="mt-4 text-base leading-7 text-fluent-muted">{t.problemText}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            {[
-              ["Before payment", "Check QR accounts, deposits, receipts, and license clues."],
-              ["Before travel", "Detect risky routes, border luring, secrecy pressure, and controlled transport."],
-              ["Before conflict", "Give calm Thai phrases and evidence checklists."],
-              ["After reporting", "Turn messy evidence into a structured help report."]
-            ].map(([title, text]) => (
+            {t.problemCards.map(([title, text]) => (
               <div key={title} className="rounded-[8px] border border-fluent-border bg-fluent-canvas p-5">
                 <p className="font-bold text-ink">{title}</p>
                 <p className="mt-2 text-sm leading-6 text-fluent-muted">{text}</p>
@@ -87,17 +86,15 @@ export default function HomePage() {
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-6">
-          <p className="text-sm font-bold uppercase tracking-wide text-azure">Tourist Evidence</p>
-          <h2 className="mt-2 max-w-3xl text-3xl font-bold text-ink">The demo is built around real travel moments, not only system diagrams.</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-fluent-muted">
-            These synthetic evidence samples show the situations TrustPass is designed to read: menus, payment chats, and rental documents. OCR supports the story, but the typed situation remains the primary case unless the user chooses otherwise.
-          </p>
+          <p className="text-sm font-bold uppercase tracking-wide text-azure">{t.touristEvidenceKicker}</p>
+          <h2 className="mt-2 max-w-3xl text-3xl font-bold text-ink">{t.touristEvidenceH2}</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-fluent-muted">{t.touristEvidenceDesc}</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {visualStories.map((story) => (
+          {t.visualStories.map((story, i) => (
             <article key={story.title} className="overflow-hidden rounded-[8px] border border-fluent-border bg-white shadow-sm">
               <div className="relative aspect-[2/3] bg-fluent-canvas">
-                <Image src={story.image} alt={story.alt} fill sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="object-contain" />
+                <Image src={visualStoriesBase[i].image} alt={visualStoriesBase[i].alt} fill sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="object-contain" />
               </div>
               <div className="p-5">
                 <p className="text-xs font-bold uppercase tracking-wide text-azure">{story.label}</p>
@@ -112,20 +109,20 @@ export default function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-wide text-azure">Live Product</p>
-            <h2 className="mt-2 text-3xl font-bold text-ink">One guided risk-check workspace for the major tourist-trust cases.</h2>
+            <p className="text-sm font-bold uppercase tracking-wide text-azure">{t.liveProductKicker}</p>
+            <h2 className="mt-2 text-3xl font-bold text-ink">{t.liveProductH2}</h2>
           </div>
           <Link href="/scenarios" className="inline-flex items-center gap-2 rounded-[8px] border border-fluent-border bg-white px-4 py-2 text-sm font-bold text-ink transition hover:border-azure hover:text-azure">
-            See all scenarios
+            {t.seeAllScenarios}
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {scenarios.map((scenario) => (
+          {scenarios.map((scenario, i) => (
             <div key={scenario.id} className="rounded-[8px] border border-fluent-border bg-white p-5 shadow-sm">
-              <RiskPill level={scenario.riskLevel} />
-              <h3 className="mt-4 text-lg font-bold text-ink">{scenario.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-fluent-muted">{scenario.touristInput}</p>
+              <RiskPill level={scenario.riskLevel} label={t.riskPillLabels[scenario.riskLevel]} />
+              <h3 className="mt-4 text-lg font-bold text-ink">{t.scenarioCards[i]?.title ?? scenario.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-fluent-muted">{t.scenarioCards[i]?.touristInput ?? scenario.touristInput}</p>
             </div>
           ))}
         </div>
@@ -137,15 +134,10 @@ export default function HomePage() {
             <Image src="/trustpass-risk-ladder.png" alt="TrustPass scam risk ladder" width={1400} height={788} className="block h-auto w-full rounded-[8px] border border-fluent-border bg-white" />
           </div>
           <div className="flex flex-col justify-center">
-            <p className="text-sm font-bold uppercase tracking-wide text-azure">Why not just ChatGPT?</p>
-            <h2 className="mt-2 text-3xl font-bold text-ink">The value is evidence, tourism risk context, and action workflow.</h2>
+            <p className="text-sm font-bold uppercase tracking-wide text-azure">{t.whyNotChatGptKicker}</p>
+            <h2 className="mt-2 text-3xl font-bold text-ink">{t.whyNotChatGptH2}</h2>
             <div className="mt-5 grid gap-3">
-              {[
-                ["Evidence-aware", "Accepts screenshots, receipts, contracts, QR screens, and chat logs."],
-                ["Thailand-specific", "Uses tourism risk patterns, emergency contacts, and verified operator signals."],
-                ["Actionable", "Returns Thai phrases, evidence checklists, and incident reports."],
-                ["Transformational", "Aggregates eligible Caution, High, and Emergency signals into a dashboard for hotels, TAT, and tourist police."]
-              ].map(([title, text]) => (
+              {t.whyNotCards.map(([title, text]) => (
                 <div key={title} className="rounded-[8px] border border-fluent-border bg-white p-4">
                   <p className="font-bold text-ink">{title}</p>
                   <p className="mt-1 text-sm leading-6 text-fluent-muted">{text}</p>
@@ -158,11 +150,11 @@ export default function HomePage() {
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-6">
-            <p className="text-sm font-bold uppercase tracking-wide text-azure">AI + Grounding Stack</p>
-          <h2 className="mt-2 text-3xl font-bold text-ink">Azure AI powers OCR and reasoning after TrustPass grounding.</h2>
+            <p className="text-sm font-bold uppercase tracking-wide text-azure">{t.aiStackKicker}</p>
+          <h2 className="mt-2 text-3xl font-bold text-ink">{t.aiStackH2}</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {azureServices.map((service) => (
+          {t.azureServices.map((service) => (
             <div key={service.title} className="rounded-[8px] border border-fluent-border bg-white p-5 shadow-sm">
               <Bot className="h-6 w-6 text-azure" />
               <p className="mt-3 font-bold text-ink">{service.title}</p>
@@ -175,16 +167,16 @@ export default function HomePage() {
       <section className="border-t border-fluent-border bg-[#EAF4FE]">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-10 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
-            <p className="text-sm font-bold uppercase tracking-wide text-azure">Product Flow</p>
-            <h2 className="mt-2 text-3xl font-bold text-ink">Start with the trust crisis, then prove the product works.</h2>
+            <p className="text-sm font-bold uppercase tracking-wide text-azure">{t.productFlowKicker}</p>
+            <h2 className="mt-2 text-3xl font-bold text-ink">{t.productFlowH2}</h2>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/check" className="inline-flex items-center gap-2 rounded-[8px] bg-azure px-5 py-3 text-sm font-bold text-white transition hover:bg-fluent-blueDark">
-              Launch Risk Check
+              {t.launchRiskCheck}
               <ShieldCheck className="h-4 w-4" />
             </Link>
             <Link href="/architecture" className="inline-flex items-center gap-2 rounded-[8px] border border-azure bg-white px-5 py-3 text-sm font-bold text-azure transition hover:bg-blue-50">
-              Show Architecture
+              {t.showArchitecture}
               <FileText className="h-4 w-4" />
             </Link>
           </div>
@@ -194,7 +186,7 @@ export default function HomePage() {
   );
 }
 
-function RiskPill({ level }: { level: string }) {
+function RiskPill({ level, label }: { level: string; label?: string }) {
   const styles: Record<string, string> = {
     Low: "border-green-200 bg-green-50 text-green-700",
     Caution: "border-yellow-200 bg-yellow-50 text-yellow-800",
@@ -204,7 +196,7 @@ function RiskPill({ level }: { level: string }) {
   return (
     <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${styles[level]}`}>
       <ShieldAlert className="h-3.5 w-3.5" />
-      {level}
+      {label ?? level}
     </span>
   );
 }

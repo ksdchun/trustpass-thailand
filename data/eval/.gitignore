@@ -1,0 +1,4 @@
+# Eval runs produce timestamped human-readable reports for local inspection.
+# Keep `results-latest.json` (the machine-readable canonical output) committed,
+# but do not flood the repo with timestamped Markdown artifacts.
+results-*.md
